@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calculator, Users, TrendingUp, DollarSign, AlertCircle, PieChart, Settings, ChevronDown, ChevronUp, Plus, Minus, Clock, Fuel, MapPin, Target, Trash2, Download, Upload, Check, X, Edit2, CreditCard, FileText, Printer, ArrowLeft } from 'lucide-react';
+import { Calculator, Users, TrendingUp, DollarSign, AlertCircle, PieChart, Settings, ChevronDown, ChevronUp, Plus, Minus, Clock, Fuel, MapPin, Target, Trash2, Download, Upload, Check, X, Edit2, CreditCard, FileText, Printer, ArrowLeft, Briefcase, BarChart3, Scaling } from 'lucide-react';
 
 const Card = ({ children, className = "" }) => (
     <div className={`bg-white rounded-xl shadow-sm border border-gray-200 ${className}`}>
@@ -42,11 +42,37 @@ const ReportView = ({ data, onClose }) => {
         breakEvenRate, profitMargin, profitPerHour,
         totalAnnualCostPerEmp, totalAnnualLaborCost, totalAnnualVariablePerEmp, fixedCostAllocatedPerEmp,
         coreHourly, benefitsList, variableOverhead, gasParams, fixedOverhead,
-        billableHours, baseWorkDays, ptoDays, holidayDays
+        billableHours, baseWorkDays, ptoDays, holidayDays, totalAnnualFixedCompany
     } = data;
 
     const annualRevenue = targetRate * billableHours;
     const annualProfit = profitPerHour * billableHours;
+    const netAnnualHours = workDays * hoursPerDay;
+
+    // Monthly & Weekly Projections
+    const monthlyRevenue = annualRevenue / 12;
+    const monthlyCost = totalAnnualCostPerEmp / 12;
+    const monthlyProfit = annualProfit / 12;
+
+    const weeklyRevenue = annualRevenue / 52;
+    const weeklyCost = totalAnnualCostPerEmp / 52;
+    const weeklyProfit = annualProfit / 52;
+
+    // Ratios
+    const laborRatio = (totalAnnualLaborCost / annualRevenue) * 100;
+    const overheadRatio = ((totalAnnualVariablePerEmp + fixedCostAllocatedPerEmp) / annualRevenue) * 100;
+    // Recalculate margin based on revenue distribution for the visual to ensure 100% sum
+    const marginRatio = 100 - laborRatio - overheadRatio;
+
+    // Break-even impact calculation
+    const baseBillable = baseWorkDays * hoursPerDay * (utilizationRate / 100);
+    const baseBreakEven = totalAnnualCostPerEmp / baseBillable;
+    const ptoImpactCost = breakEvenRate - baseBreakEven;
+
+    // Minimum Utilization Calculation
+    const totalPotentialHours = workDays * hoursPerDay;
+    const requiredBillableHoursForBreakEven = targetRate > 0 ? totalAnnualCostPerEmp / targetRate : 0;
+    const minUtilizationToBreakEven = totalPotentialHours > 0 ? (requiredBillableHoursForBreakEven / totalPotentialHours) * 100 : 0;
 
     // Sensitivity Analysis Data
     const calculateScenario = (utilChange) => {
@@ -66,245 +92,392 @@ const ReportView = ({ data, onClose }) => {
         calculateScenario(10),
     ];
 
+    // Scalability Calculation
+    const calculateGrowth = (count) => {
+        // Fixed cost per person drops as count increases
+        const fixedPerPerson = totalAnnualFixedCompany / count;
+        const totalCostPerPerson = totalAnnualLaborCost + totalAnnualVariablePerEmp + fixedPerPerson;
+        const totalRevenuePerPerson = targetRate * billableHours;
+        const profitPerPerson = totalRevenuePerPerson - totalCostPerPerson;
+        const margin = (profitPerPerson / totalRevenuePerPerson) * 100;
+        return { count, margin, totalProfit: profitPerPerson * count };
+    };
+
+    const growthScenarios = [1, 2, 3, 4, 5, 20, 100].map(calculateGrowth);
+
+    // Dynamic Recommendation
+    let recommendationText = "";
+    let recommendationColor = "bg-blue-50 border-blue-200 text-blue-800";
+
+    if (profitMargin < 10) {
+        recommendationText = "CRITICAL ACTION REQUIRED: Current margins are dangerously low. Immediate steps should include: 1) Increasing the hourly rate, 2) Improving utilization through better scheduling, or 3) Auditing overhead expenses.";
+        recommendationColor = "bg-red-50 border-red-200 text-red-900";
+    } else if (profitMargin < 20) {
+        recommendationText = "OPTIMIZATION NEEDED: Margins are positive but below industry targets (20%+). Consider small rate increases or efficiency incentives to boost billable hours.";
+        recommendationColor = "bg-amber-50 border-amber-200 text-amber-900";
+    } else {
+        recommendationText = "HEALTHY PERFORMANCE: The projected margins meet or exceed industry standards. Focus on maintaining utilization rates and controlling variable costs as the team grows.";
+        recommendationColor = "bg-emerald-50 border-emerald-200 text-emerald-900";
+    }
+
     return (
-        <div className="fixed inset-0 bg-slate-100 z-50 overflow-y-auto">
-            <div className="max-w-5xl mx-auto bg-white min-h-screen shadow-2xl print:shadow-none">
+        <div className="fixed inset-0 bg-slate-100 z-50 overflow-y-auto font-sans">
+            <div className="max-w-[8.5in] mx-auto bg-white min-h-screen shadow-2xl print:shadow-none print:max-w-none">
                 {/* Toolbar - Hidden on Print */}
-                <div className="sticky top-0 bg-slate-900 text-white p-4 flex justify-between items-center print:hidden z-10">
+                <div className="sticky top-0 bg-slate-900 text-white p-4 flex justify-between items-center print:hidden z-10 shadow-md">
                     <div className="flex items-center gap-4">
-                        <button onClick={onClose} className="flex items-center gap-2 hover:text-blue-300 transition-colors">
-                            <ArrowLeft size={20} /> Back to Editor
+                        <button onClick={onClose} className="flex items-center gap-2 hover:text-blue-300 transition-colors text-sm font-medium">
+                            <ArrowLeft size={18} /> Return to Calculator
                         </button>
-                        <h2 className="font-bold text-lg border-l border-slate-700 pl-4">Report Preview</h2>
+                        <div className="h-6 w-px bg-slate-700"></div>
+                        <h2 className="font-bold text-lg tracking-wide">Report Preview</h2>
                     </div>
                     <button
                         onClick={() => window.print()}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-bold transition-colors"
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-5 py-2 rounded-md font-bold transition-all shadow-sm text-sm"
                     >
-                        <Printer size={20} /> Print / Save PDF
+                        <Printer size={18} /> Print / Save PDF
                     </button>
                 </div>
 
                 {/* REPORT CONTENT */}
-                <div className="p-8 md:p-12 space-y-8 text-slate-900">
+                <div className="p-12 print:p-0 space-y-8 text-slate-900">
 
-                    {/* Header */}
-                    <div className="border-b-2 border-slate-900 pb-6 flex justify-between items-end">
-                        <div>
-                            <h1 className="text-4xl font-black uppercase tracking-tight text-slate-900">Strategic Financial Analysis</h1>
-                            <p className="text-slate-500 mt-2 font-medium">HVAC Service Department Cost & Pricing Structure</p>
-                        </div>
-                        <div className="text-right">
-                            <div className="text-sm text-slate-400 font-mono">Generated: {new Date().toLocaleDateString()}</div>
-                            <div className="text-sm font-bold text-slate-900 mt-1">Confidential Internal Document</div>
-                        </div>
-                    </div>
-
-                    {/* Time Breakdown */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 flex justify-between items-center">
-                        <div>
-                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Time Capacity</h3>
-                            <div className="text-lg font-medium text-slate-700">
-                                <span className="font-bold">{baseWorkDays}</span> Standard Days - <span className="font-bold text-red-500">{ptoDays + holidayDays}</span> Days Off = <span className="font-bold text-blue-600">{workDays}</span> Working Days
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Billable Hours</div>
-                            <div className="text-2xl font-black text-slate-900">{Math.round(billableHours).toLocaleString()} hrs/yr</div>
-                            <div className="text-xs text-slate-400">@{utilizationRate}% Utilization</div>
-                        </div>
-                    </div>
-
-                    {/* Executive Summary Grid */}
-                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Executive Summary</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                    {/* 1. HEADER SECTION */}
+                    <header className="border-b-4 border-blue-600 pb-6 mb-8">
+                        <div className="flex justify-between items-start">
                             <div>
-                                <div className="text-slate-500 text-xs font-medium uppercase mb-1">Recommended Rate</div>
-                                <div className="text-3xl font-black text-blue-600">${targetRate.toFixed(2)}</div>
-                                <div className="text-xs text-slate-400">per billable hour</div>
+                                <h1 className="text-4xl font-extrabold uppercase tracking-tight text-slate-900 leading-none">Financial Feasibility<br />& Pricing Report</h1>
+                                <p className="text-slate-500 mt-3 font-medium text-lg">HVAC Service Department Analysis</p>
                             </div>
-                            <div>
-                                <div className="text-slate-500 text-xs font-medium uppercase mb-1">Break-Even Cost</div>
-                                <div className="text-3xl font-black text-slate-700">${breakEvenRate.toFixed(2)}</div>
-                                <div className="text-xs text-slate-400">per billable hour</div>
-                            </div>
-                            <div>
-                                <div className="text-slate-500 text-xs font-medium uppercase mb-1">Net Margin</div>
-                                <div className={`text-3xl font-black ${profitMargin >= 20 ? 'text-emerald-600' : 'text-amber-500'}`}>
-                                    {profitMargin.toFixed(1)}%
+                            <div className="text-right">
+                                <div className="inline-block bg-slate-100 px-4 py-2 rounded mb-2">
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Proposed Rate</span>
+                                    <span className="text-3xl font-black text-blue-600">${targetRate.toFixed(2)}</span>
                                 </div>
-                                <div className="text-xs text-slate-400">Target: 20.0%</div>
-                            </div>
-                            <div>
-                                <div className="text-slate-500 text-xs font-medium uppercase mb-1">Annual Net Profit</div>
-                                <div className="text-3xl font-black text-slate-900">${annualProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                                <div className="text-xs text-slate-400">per technician</div>
+                                <div className="text-xs text-slate-400 mt-2">Generated: {new Date().toLocaleDateString()}</div>
                             </div>
                         </div>
-                    </div>
+                    </header>
 
-                    {/* Visual Breakdown */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                    {/* 2. EXECUTIVE SUMMARY CARDS */}
+                    <section className="grid grid-cols-3 gap-6 mb-8">
+                        <div className="col-span-1 bg-slate-50 p-5 rounded-lg border border-slate-200">
+                            <div className="flex items-center gap-2 mb-2 text-slate-500">
+                                <DollarSign size={16} />
+                                <span className="text-xs font-bold uppercase tracking-wider">Break-Even Cost</span>
+                            </div>
+                            <div className="text-4xl font-black text-slate-800 mb-1">${breakEvenRate.toFixed(2)}</div>
+                            <div className="text-xs text-slate-400">Per billable hour to cover all costs</div>
+                        </div>
+                        <div className="col-span-1 bg-slate-50 p-5 rounded-lg border border-slate-200">
+                            <div className="flex items-center gap-2 mb-2 text-slate-500">
+                                <TrendingUp size={16} />
+                                <span className="text-xs font-bold uppercase tracking-wider">Net Profit Margin</span>
+                            </div>
+                            <div className={`text-4xl font-black mb-1 ${profitMargin >= 20 ? 'text-emerald-600' : 'text-amber-500'}`}>{profitMargin.toFixed(1)}%</div>
+                            <div className="text-xs text-slate-400">Target: 20.0%</div>
+                        </div>
+                        <div className="col-span-1 bg-slate-50 p-5 rounded-lg border border-slate-200">
+                            <div className="flex items-center gap-2 mb-2 text-slate-500">
+                                <Users size={16} />
+                                <span className="text-xs font-bold uppercase tracking-wider">Annual Net Profit</span>
+                            </div>
+                            <div className="text-4xl font-black text-slate-800 mb-1">${annualProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                            <div className="text-xs text-slate-400">Per technician @ {utilizationRate}% util.</div>
+                        </div>
+                    </section>
+
+                    {/* 3. COMPACT WORK SCHEDULE */}
+                    <section className="mb-8 break-inside-avoid">
+                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <Clock size={16} className="text-blue-600" /> Annual Schedule Breakdown
+                        </h3>
+                        <div className="bg-slate-50 border border-slate-200 p-6 rounded-lg grid grid-cols-2 md:grid-cols-4 gap-6 text-center divide-x divide-slate-200">
+                            <div className="px-2">
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">Base Year</div>
+                                <div className="text-2xl font-black text-slate-800">{baseWorkDays} <span className="text-sm font-medium text-slate-500">Days</span></div>
+                            </div>
+                            <div className="px-2 border-l border-slate-200">
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">Paid Time Off</div>
+                                <div className="text-2xl font-black text-red-500">-{ptoDays + holidayDays} <span className="text-sm font-medium text-red-300">Days</span></div>
+                            </div>
+                            <div className="px-2 border-l border-slate-200">
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">Net Working</div>
+                                <div className="text-2xl font-black text-blue-600">{workDays} <span className="text-sm font-medium text-blue-400">Days</span></div>
+                            </div>
+                            <div className="px-2 border-l border-slate-200">
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">Net Hours</div>
+                                <div className="text-2xl font-black text-slate-900">{netAnnualHours.toLocaleString()} <span className="text-sm font-medium text-slate-500">Hrs</span></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* 4. REVENUE COMPOSITION VISUAL */}
+                    <section className="mb-12 break-inside-avoid">
+                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <PieChart size={16} className="text-blue-600" /> Revenue Distribution (Where every $1.00 goes)
+                        </h3>
+                        <div className="h-14 w-full flex rounded-t-lg overflow-hidden shadow-sm border-x border-t border-slate-200">
+                            <div style={{ width: `${Math.max(0, laborRatio)}%` }} className="bg-emerald-500 flex flex-col justify-center items-center text-white relative group">
+                                <span className="font-bold text-sm drop-shadow-md">{laborRatio.toFixed(1)}%</span>
+                                <span className="text-[10px] uppercase opacity-90">Labor</span>
+                            </div>
+                            <div style={{ width: `${Math.max(0, overheadRatio)}%` }} className="bg-amber-500 flex flex-col justify-center items-center text-white relative group">
+                                <span className="font-bold text-sm drop-shadow-md">{overheadRatio.toFixed(1)}%</span>
+                                <span className="text-[10px] uppercase opacity-90">Overhead</span>
+                            </div>
+                            <div style={{ width: `${Math.max(0, marginRatio)}%` }} className="bg-blue-600 flex flex-col justify-center items-center text-white relative group">
+                                <span className="font-bold text-sm drop-shadow-md">{marginRatio.toFixed(1)}%</span>
+                                <span className="text-[10px] uppercase opacity-90">Profit</span>
+                            </div>
+                        </div>
+                        {/* THIN BLUE BAR UNDERNEATH */}
+                        <div className="h-6 w-full bg-blue-700 rounded-b-lg flex items-center justify-center relative shadow-sm">
+                            <span className="font-bold text-white text-xs uppercase tracking-widest">Total Rate: ${targetRate.toFixed(2)} / Hour</span>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-3 text-xs text-center text-slate-500">
+                            <div>Labor & Benefits Burden</div>
+                            <div>Operational Overhead</div>
+                            <div>Net Company Profit</div>
+                        </div>
+                    </section>
+
+                    {/* 5. DETAILED PROJECTIONS TABLE */}
+                    <section className="mb-12">
+                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <Briefcase size={16} className="text-blue-600" /> Operational Projections
+                        </h3>
+                        <div className="overflow-hidden border border-slate-200 rounded-lg">
+                            <table className="min-w-full text-sm divide-y divide-slate-200">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left font-bold text-slate-500 uppercase text-xs">Metric (Per Tech)</th>
+                                        <th className="px-4 py-3 text-right font-bold text-slate-500 uppercase text-xs">Annual</th>
+                                        <th className="px-4 py-3 text-right font-bold text-slate-500 uppercase text-xs">Monthly</th>
+                                        <th className="px-4 py-3 text-right font-bold text-slate-500 uppercase text-xs">Weekly</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 bg-white">
+                                    <tr>
+                                        <td className="px-4 py-3 font-medium text-slate-700">Gross Revenue</td>
+                                        <td className="px-4 py-3 text-right font-bold text-slate-900">${annualRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                        <td className="px-4 py-3 text-right text-slate-600">${monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                        <td className="px-4 py-3 text-right text-slate-600">${weeklyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="px-4 py-3 font-medium text-slate-700">Total Costs</td>
+                                        <td className="px-4 py-3 text-right font-bold text-red-600">(${totalAnnualCostPerEmp.toLocaleString(undefined, { maximumFractionDigits: 0 })})</td>
+                                        <td className="px-4 py-3 text-right text-red-500">(${monthlyCost.toLocaleString(undefined, { maximumFractionDigits: 0 })})</td>
+                                        <td className="px-4 py-3 text-right text-red-500">(${weeklyCost.toLocaleString(undefined, { maximumFractionDigits: 0 })})</td>
+                                    </tr>
+                                    <tr className="bg-blue-50/50">
+                                        <td className="px-4 py-3 font-bold text-slate-900">Net Profit</td>
+                                        <td className="px-4 py-3 text-right font-black text-blue-700">${annualProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                        <td className="px-4 py-3 text-right font-bold text-blue-600">${monthlyProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                        <td className="px-4 py-3 text-right font-bold text-blue-600">${weeklyProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    {/* 6. GROWTH & SCALABILITY */}
+                    <section className="mb-12 break-inside-avoid">
+                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <Scaling size={16} className="text-blue-600" /> Growth Potential: Economy of Scale
+                        </h3>
+                        <p className="text-sm text-slate-600 mb-4">
+                            As you add technicians, your fixed overhead costs are distributed across more revenue generators, significantly increasing your net profit margin.
+                        </p>
+                        <div className="overflow-hidden border border-slate-200 rounded-lg">
+                            <table className="min-w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-500 font-semibold text-xs uppercase">
+                                    <tr>
+                                        <th className="p-3">Technicians</th>
+                                        <th className="p-3 text-right">Fixed Cost Allocation (Per Tech)</th>
+                                        <th className="p-3 text-right">Net Profit Margin</th>
+                                        <th className="p-3 text-right">Total Company Annual Profit</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {growthScenarios.map((s) => (
+                                        <tr key={s.count} className={s.count === numEmployees ? "bg-blue-50 font-bold" : ""}>
+                                            <td className="p-3 flex items-center gap-2">
+                                                {s.count} Techs
+                                                {s.count === numEmployees && <span className="px-2 py-0.5 bg-blue-200 text-blue-800 text-[10px] rounded-full uppercase">Current</span>}
+                                            </td>
+                                            <td className="p-3 text-right text-slate-500">${(totalAnnualFixedCompany / s.count).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                            <td className={`p-3 text-right ${s.margin < 0 ? 'text-red-500' : 'text-emerald-600'}`}>{s.margin.toFixed(1)}%</td>
+                                            <td className="p-3 text-right font-bold text-slate-900">${s.totalProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    {/* 7. SENSITIVITY & RECOMMENDATION */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+                        {/* Sensitivity Table */}
                         <div>
-                            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                                <PieChart size={20} className="text-blue-600" /> Cost Structure Analysis
+                            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <BarChart3 size={16} className="text-blue-600" /> Efficiency Impact
                             </h3>
-                            <div className="space-y-6">
-                                <div className="relative pt-2">
-                                    <div className="flex mb-2 items-center justify-between">
-                                        <div className="text-xs font-semibold inline-block uppercase text-emerald-600">Labor & Benefits</div>
-                                        <div className="text-xs font-semibold inline-block text-emerald-600">${totalAnnualLaborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                                    </div>
-                                    <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-emerald-100">
-                                        <div style={{ width: `${(totalAnnualLaborCost / totalAnnualCostPerEmp) * 100}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-emerald-500"></div>
-                                    </div>
-
-                                    <div className="flex mb-2 items-center justify-between">
-                                        <div className="text-xs font-semibold inline-block uppercase text-amber-600">Variable Overhead</div>
-                                        <div className="text-xs font-semibold inline-block text-amber-600">${totalAnnualVariablePerEmp.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                                    </div>
-                                    <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-amber-100">
-                                        <div style={{ width: `${(totalAnnualVariablePerEmp / totalAnnualCostPerEmp) * 100}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-amber-500"></div>
-                                    </div>
-
-                                    <div className="flex mb-2 items-center justify-between">
-                                        <div className="text-xs font-semibold inline-block uppercase text-indigo-600">Fixed Overhead Share</div>
-                                        <div className="text-xs font-semibold inline-block text-indigo-600">${fixedCostAllocatedPerEmp.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                                    </div>
-                                    <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-100">
-                                        <div style={{ width: `${(fixedCostAllocatedPerEmp / totalAnnualCostPerEmp) * 100}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-500"></div>
-                                    </div>
-                                </div>
-                                <div className="p-4 bg-slate-50 rounded text-xs text-slate-600 italic">
-                                    "To cover the total cost of <strong>${totalAnnualCostPerEmp.toLocaleString()}</strong> per technician, each tech must generate <strong>${breakEvenRate.toFixed(2)}</strong> for every billable hour worked."
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                                <TrendingUp size={20} className="text-blue-600" /> Sensitivity Analysis
-                            </h3>
-                            <p className="text-xs text-slate-500 mb-4">Impact of technician utilization (efficiency) on annual net profit.</p>
-
                             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                                 <table className="w-full text-sm text-left">
-                                    <thead className="bg-slate-50 text-slate-500 font-semibold">
+                                    <thead className="bg-slate-50 text-slate-500 font-semibold text-xs uppercase">
                                         <tr>
                                             <th className="p-3">Utilization</th>
-                                            <th className="p-3 text-right">Net Margin</th>
-                                            <th className="p-3 text-right">Annual Profit</th>
+                                            <th className="p-3 text-right">Margin</th>
+                                            <th className="p-3 text-right">Annual Profit (Per Tech)</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
                                         {scenarios.map((s, i) => (
                                             <tr key={i} className={s.isCurrent ? "bg-blue-50 font-bold" : ""}>
-                                                <td className="p-3 flex items-center gap-2">
+                                                <td className="p-2 pl-3 flex items-center gap-2">
                                                     {s.util}%
-                                                    {s.isCurrent && <span className="px-2 py-0.5 bg-blue-200 text-blue-800 text-[10px] rounded-full uppercase">Current</span>}
+                                                    {s.isCurrent && <span className="w-2 h-2 rounded-full bg-blue-600"></span>}
                                                 </td>
-                                                <td className={`p-3 text-right ${s.margin < 0 ? 'text-red-500' : 'text-slate-700'}`}>{s.margin.toFixed(1)}%</td>
-                                                <td className={`p-3 text-right ${s.profit < 0 ? 'text-red-500' : 'text-emerald-600'}`}>${s.profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                                <td className={`p-2 text-right ${s.margin < 0 ? 'text-red-500' : 'text-slate-700'}`}>{s.margin.toFixed(1)}%</td>
+                                                <td className={`p-2 pr-3 text-right ${s.profit < 0 ? 'text-red-500' : 'text-emerald-600'}`}>${s.profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
+                            </div>
+
+                            {/* MINIMUM UTILIZATION BOX */}
+                            <div className="mt-4 bg-slate-50 rounded-lg p-4 border border-slate-200 flex items-center justify-between">
+                                <div>
+                                    <div className="text-xs font-bold text-slate-500 uppercase">Min. Utilization to Break Even</div>
+                                    <div className="text-xs text-slate-400 mt-0.5">Based on {targetRate}/hr rate</div>
+                                </div>
+                                <div className="text-2xl font-black text-slate-800">
+                                    {minUtilizationToBreakEven.toFixed(1)}%
+                                </div>
+                            </div>
+
+                        </div>
+
+                        {/* Strategic Recommendation Box */}
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <Target size={16} className="text-blue-600" /> Strategic Insight
+                            </h3>
+                            <div className={`p-6 rounded-xl border ${recommendationColor} h-full`}>
+                                <h4 className="font-bold text-lg mb-2">Analysis Conclusion</h4>
+                                <p className="text-sm leading-relaxed">{recommendationText}</p>
+                                <div className="mt-6 pt-4 border-t border-black/10">
+                                    <div className="flex justify-between items-center text-xs font-medium opacity-70 uppercase">
+                                        <span>Working Days</span>
+                                        <span>{workDays} / Year</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs font-medium opacity-70 uppercase mt-1">
+                                        <span>Billable Capacity</span>
+                                        <span>{Math.round(billableHours)} Hrs / Year</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Detailed Tables */}
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-900 mb-6 mt-8 border-b border-gray-200 pb-2">Detailed Expense Breakdown</h3>
+                    {/* 8. APPENDIX - DETAILED BREAKDOWN (Page Break optimized) */}
+                    <div className="break-before-page">
+                        <h3 className="text-lg font-bold text-slate-900 mb-6 border-b border-slate-200 pb-2">Appendix: Cost Itemization</h3>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm">
+                        <div className="grid grid-cols-2 gap-8 text-xs">
 
-                            {/* Table 1: Labor */}
-                            <div className="space-y-2">
-                                <h4 className="font-bold text-emerald-700 uppercase text-xs tracking-wider">Labor & Benefits</h4>
-                                <table className="w-full border-collapse">
-                                    <tbody className="divide-y divide-gray-100 border-t border-gray-200">
+                            {/* Labor Table */}
+                            <div className="col-span-1">
+                                <div className="bg-emerald-50 p-2 font-bold text-emerald-800 uppercase mb-2 rounded">Labor & Benefits</div>
+                                <table className="w-full">
+                                    <tbody className="divide-y divide-emerald-100">
                                         <tr>
-                                            <td className="py-2 text-slate-600">Base Wage</td>
-                                            <td className="py-2 text-right font-medium">${coreHourly.wage.value.toFixed(2)}/hr</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="py-2 text-slate-600">Taxes & Insurance</td>
-                                            <td className="py-2 text-right font-medium">Included</td>
+                                            <td className="py-1.5 text-slate-600">Base Wage</td>
+                                            <td className="py-1.5 text-right font-medium">${coreHourly.wage.value.toFixed(2)}/hr</td>
                                         </tr>
                                         {benefitsList.items.map(item => (
                                             <tr key={item.id}>
-                                                <td className="py-2 text-slate-600">{item.name}</td>
-                                                <td className="py-2 text-right text-slate-400">${item.value.toLocaleString()} <span className="text-[10px] uppercase">{item.unit === 'days' ? 'Days' : item.freq}</span></td>
+                                                <td className="py-1.5 text-slate-600">{item.name}</td>
+                                                <td className="py-1.5 text-right text-slate-500">${item.value.toLocaleString()} <span className="text-[9px] uppercase opacity-50">{item.unit === 'days' ? 'days' : item.freq}</span></td>
                                             </tr>
                                         ))}
-                                        <tr className="bg-emerald-50 border-t border-emerald-100 font-bold">
-                                            <td className="py-2 px-2 text-emerald-900">Total Labor Annual</td>
-                                            <td className="py-2 px-2 text-right text-emerald-900">${totalAnnualLaborCost.toLocaleString()}</td>
+                                        <tr className="font-bold bg-white">
+                                            <td className="py-2 pt-3">Total Annual Labor</td>
+                                            <td className="py-2 pt-3 text-right">${totalAnnualLaborCost.toLocaleString()}</td>
                                         </tr>
                                     </tbody>
                                 </table>
                             </div>
 
-                            {/* Table 2: Variable */}
-                            <div className="space-y-2">
-                                <h4 className="font-bold text-amber-700 uppercase text-xs tracking-wider">Variable Expenses</h4>
-                                <table className="w-full border-collapse">
-                                    <tbody className="divide-y divide-gray-100 border-t border-gray-200">
+                            {/* Variable Table */}
+                            <div className="col-span-1">
+                                <div className="bg-amber-50 p-2 font-bold text-amber-800 uppercase mb-2 rounded">Variable Overhead</div>
+                                <table className="w-full">
+                                    <tbody className="divide-y divide-amber-100">
                                         <tr>
-                                            <td className="py-2 text-slate-600">Fuel Cost</td>
-                                            <td className="py-2 text-right font-medium">${gasParams.annualCost.toLocaleString()}</td>
+                                            <td className="py-1.5 text-slate-600">Fuel Cost</td>
+                                            <td className="py-1.5 text-right font-medium">${gasParams.annualCost.toLocaleString()}</td>
                                         </tr>
-                                        {variableOverhead.map(cat =>
+                                        {variableOverhead.flatMap(cat =>
                                             cat.items.map(item => (
                                                 <tr key={`${cat.id}-${item.id}`}>
-                                                    <td className="py-2 text-slate-600">{item.name} <span className="text-xs text-gray-300">({cat.name})</span></td>
-                                                    <td className="py-2 text-right text-slate-400">${item.value.toLocaleString()} <span className="text-[10px] uppercase">{item.freq}</span></td>
+                                                    <td className="py-1.5 text-slate-600 truncate pr-2">{item.name}</td>
+                                                    <td className="py-1.5 text-right text-slate-500">${item.value.toLocaleString()} <span className="text-[9px] uppercase opacity-50">{item.freq}</span></td>
                                                 </tr>
                                             ))
                                         )}
-                                        <tr className="bg-amber-50 border-t border-amber-100 font-bold">
-                                            <td className="py-2 px-2 text-amber-900">Total Variable Annual</td>
-                                            <td className="py-2 px-2 text-right text-amber-900">${totalAnnualVariablePerEmp.toLocaleString()}</td>
+                                        <tr className="font-bold bg-white">
+                                            <td className="py-2 pt-3">Total Annual Variable</td>
+                                            <td className="py-2 pt-3 text-right">${totalAnnualVariablePerEmp.toLocaleString()}</td>
                                         </tr>
                                     </tbody>
                                 </table>
                             </div>
 
-                            {/* Table 3: Fixed */}
-                            <div className="space-y-2 md:col-span-2">
-                                <h4 className="font-bold text-indigo-700 uppercase text-xs tracking-wider">Fixed Overhead (Company Wide)</h4>
-                                <p className="text-xs text-gray-400">These costs are divided by {numEmployees} technician(s).</p>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-2">
+                            {/* Fixed Table */}
+                            <div className="col-span-2 mt-4">
+                                <div className="bg-indigo-50 p-2 font-bold text-indigo-800 uppercase mb-2 rounded flex justify-between">
+                                    <span>Fixed Overhead (Company Wide)</span>
+                                    <span className="text-xs font-normal lowercase opacity-70">Divided by {numEmployees} techs</span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-x-8 gap-y-1">
                                     {fixedOverhead.flatMap(cat =>
                                         cat.items.map(item => (
-                                            <div key={`${cat.id}-${item.id}`} className="flex justify-between py-1 border-b border-gray-50">
+                                            <div key={`${cat.id}-${item.id}`} className="flex justify-between py-1 border-b border-slate-100">
                                                 <span className="text-slate-600">{item.name}</span>
-                                                <span className="text-slate-400">${item.value.toLocaleString()} <span className="text-[10px] uppercase">{item.freq}</span></span>
+                                                <span className="text-slate-400">${item.value.toLocaleString()} <span className="text-[9px] uppercase opacity-50">{item.freq}</span></span>
                                             </div>
                                         ))
                                     )}
                                 </div>
-                                <div className="bg-indigo-50 border border-indigo-100 font-bold p-2 mt-2 flex justify-between rounded">
-                                    <span className="text-indigo-900">Total Allocation Per Tech</span>
-                                    <span className="text-indigo-900">${fixedCostAllocatedPerEmp.toLocaleString()}</span>
+                                <div className="mt-3 font-bold text-right text-indigo-900 border-t border-indigo-100 pt-2">
+                                    Total Allocation Per Tech: ${fixedCostAllocatedPerEmp.toLocaleString()}
                                 </div>
                             </div>
 
                         </div>
                     </div>
 
-                    {/* Signature / Notes Section for Print */}
-                    <div className="hidden print:block mt-12 pt-8 border-t border-slate-300">
-                        <div className="grid grid-cols-2 gap-12">
+                    {/* 9. SIGNATURE AREA */}
+                    <div className="hidden print:block mt-16 pt-12 border-t border-slate-300">
+                        <div className="grid grid-cols-2 gap-20">
                             <div>
-                                <div className="h-8 border-b border-slate-300 mb-1"></div>
-                                <div className="text-xs text-slate-400 uppercase">Prepared By</div>
+                                <div className="h-px bg-slate-400 mb-2"></div>
+                                <div className="flex justify-between text-xs text-slate-500 uppercase font-bold tracking-wider">
+                                    <span>Prepared By</span>
+                                    <span>Date</span>
+                                </div>
                             </div>
                             <div>
-                                <div className="h-8 border-b border-slate-300 mb-1"></div>
-                                <div className="text-xs text-slate-400 uppercase">Approved By</div>
+                                <div className="h-px bg-slate-400 mb-2"></div>
+                                <div className="flex justify-between text-xs text-slate-500 uppercase font-bold tracking-wider">
+                                    <span>Approved By</span>
+                                    <span>Date</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -605,8 +778,10 @@ export default function App() {
             ]
         },
         {
-            id: 'other', name: 'Other (Vlog/Misc)', items: [
+            id: 'other', name: 'Other (PTO/Vlog)', items: [
                 { id: 1, name: 'Vlog Editing', value: 4900, freq: 'yearly', unit: 'currency' },
+                { id: 2, name: 'PTO Cost', value: 80, freq: 'yearly', unit: 'hours' },
+                { id: 3, name: 'Paid Holidays', value: 48, freq: 'yearly', unit: 'hours' },
                 { id: 4, name: 'Bad Debt (1%)', value: 3000, freq: 'yearly', unit: 'currency' }
             ]
         }
@@ -868,7 +1043,7 @@ export default function App() {
         breakEvenRate, profitMargin, profitPerHour,
         totalAnnualCostPerEmp, totalAnnualLaborCost, totalAnnualVariablePerEmp, fixedCostAllocatedPerEmp,
         coreHourly, benefitsList, variableOverhead, gasParams, fixedOverhead,
-        billableHours, baseWorkDays, ptoDays, holidayDays
+        billableHours, baseWorkDays, ptoDays, holidayDays, totalAnnualFixedCompany
     };
 
     if (showReport) {
