@@ -779,10 +779,8 @@ export default function App() {
             ]
         },
         {
-            id: 'other', name: 'Other (PTO/Vlog)', items: [
+            id: 'other', name: 'Other (Vlog/Misc)', items: [
                 { id: 1, name: 'Vlog Editing', value: 4900, freq: 'yearly', unit: 'currency' },
-                { id: 2, name: 'PTO Cost', value: 80, freq: 'yearly', unit: 'hours' },
-                { id: 3, name: 'Paid Holidays', value: 48, freq: 'yearly', unit: 'hours' },
                 { id: 4, name: 'Bad Debt (1%)', value: 3000, freq: 'yearly', unit: 'currency' }
             ]
         }
