@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calculator, Users, TrendingUp, DollarSign, AlertCircle, PieChart, Settings, ChevronDown, ChevronUp, Plus, Minus, Clock, Fuel, MapPin, Target, Trash2, Download, Upload, Check, X, Edit2, CreditCard } from 'lucide-react';
+import { Calculator, Users, TrendingUp, DollarSign, AlertCircle, PieChart, Settings, ChevronDown, ChevronUp, Plus, Minus, Clock, Fuel, MapPin, Target, Trash2, Download, Upload, Check, X, Edit2, CreditCard, FileText, Printer, ArrowLeft } from 'lucide-react';
 
 const Card = ({ children, className = "" }) => (
     <div className={`bg-white rounded-xl shadow-sm border border-gray-200 ${className}`}>
@@ -29,11 +29,291 @@ const SectionHeader = ({ title, icon: Icon, isOpen, onClick, value }) => (
 
 // Frequency Options and Multipliers
 const FREQUENCIES = [
-    { value: 'hourly', label: '/hr', toAnnual: (val, days, hours) => val * days * hours },
-    { value: 'daily', label: '/day', toAnnual: (val, days) => val * days },
-    { value: 'monthly', label: '/mo', toAnnual: (val) => val * 12 },
-    { value: 'yearly', label: '/yr', toAnnual: (val) => val },
+    { value: 'hourly', label: 'Hour', toAnnual: (val, days, hours) => val * days * hours },
+    { value: 'daily', label: 'Day', toAnnual: (val, days) => val * days },
+    { value: 'monthly', label: 'Month', toAnnual: (val) => val * 12 },
+    { value: 'yearly', label: 'Year', toAnnual: (val) => val },
 ];
+
+// --- REPORT COMPONENT ---
+const ReportView = ({ data, onClose }) => {
+    const {
+        numEmployees, utilizationRate, workDays, hoursPerDay, targetRate,
+        breakEvenRate, profitMargin, profitPerHour,
+        totalAnnualCostPerEmp, totalAnnualLaborCost, totalAnnualVariablePerEmp, fixedCostAllocatedPerEmp,
+        coreHourly, benefitsList, variableOverhead, gasParams, fixedOverhead,
+        billableHours, baseWorkDays, ptoDays, holidayDays
+    } = data;
+
+    const annualRevenue = targetRate * billableHours;
+    const annualProfit = profitPerHour * billableHours;
+
+    // Sensitivity Analysis Data
+    const calculateScenario = (utilChange) => {
+        const newUtil = utilizationRate + utilChange;
+        const newBillable = (workDays * hoursPerDay) * (newUtil / 100);
+        const newBreakEven = totalAnnualCostPerEmp / newBillable;
+        const newProfitHr = targetRate - newBreakEven;
+        const newAnnualProfit = newProfitHr * newBillable;
+        return { util: newUtil, profit: newAnnualProfit, margin: (newProfitHr / targetRate) * 100 };
+    };
+
+    const scenarios = [
+        calculateScenario(-10),
+        calculateScenario(-5),
+        { util: utilizationRate, profit: annualProfit, margin: profitMargin, isCurrent: true },
+        calculateScenario(5),
+        calculateScenario(10),
+    ];
+
+    return (
+        <div className="fixed inset-0 bg-slate-100 z-50 overflow-y-auto">
+            <div className="max-w-5xl mx-auto bg-white min-h-screen shadow-2xl print:shadow-none">
+                {/* Toolbar - Hidden on Print */}
+                <div className="sticky top-0 bg-slate-900 text-white p-4 flex justify-between items-center print:hidden z-10">
+                    <div className="flex items-center gap-4">
+                        <button onClick={onClose} className="flex items-center gap-2 hover:text-blue-300 transition-colors">
+                            <ArrowLeft size={20} /> Back to Editor
+                        </button>
+                        <h2 className="font-bold text-lg border-l border-slate-700 pl-4">Report Preview</h2>
+                    </div>
+                    <button
+                        onClick={() => window.print()}
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-bold transition-colors"
+                    >
+                        <Printer size={20} /> Print / Save PDF
+                    </button>
+                </div>
+
+                {/* REPORT CONTENT */}
+                <div className="p-8 md:p-12 space-y-8 text-slate-900">
+
+                    {/* Header */}
+                    <div className="border-b-2 border-slate-900 pb-6 flex justify-between items-end">
+                        <div>
+                            <h1 className="text-4xl font-black uppercase tracking-tight text-slate-900">Strategic Financial Analysis</h1>
+                            <p className="text-slate-500 mt-2 font-medium">HVAC Service Department Cost & Pricing Structure</p>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-sm text-slate-400 font-mono">Generated: {new Date().toLocaleDateString()}</div>
+                            <div className="text-sm font-bold text-slate-900 mt-1">Confidential Internal Document</div>
+                        </div>
+                    </div>
+
+                    {/* Time Breakdown */}
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 flex justify-between items-center">
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Time Capacity</h3>
+                            <div className="text-lg font-medium text-slate-700">
+                                <span className="font-bold">{baseWorkDays}</span> Standard Days - <span className="font-bold text-red-500">{ptoDays + holidayDays}</span> Days Off = <span className="font-bold text-blue-600">{workDays}</span> Working Days
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Billable Hours</div>
+                            <div className="text-2xl font-black text-slate-900">{Math.round(billableHours).toLocaleString()} hrs/yr</div>
+                            <div className="text-xs text-slate-400">@{utilizationRate}% Utilization</div>
+                        </div>
+                    </div>
+
+                    {/* Executive Summary Grid */}
+                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Executive Summary</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                            <div>
+                                <div className="text-slate-500 text-xs font-medium uppercase mb-1">Recommended Rate</div>
+                                <div className="text-3xl font-black text-blue-600">${targetRate.toFixed(2)}</div>
+                                <div className="text-xs text-slate-400">per billable hour</div>
+                            </div>
+                            <div>
+                                <div className="text-slate-500 text-xs font-medium uppercase mb-1">Break-Even Cost</div>
+                                <div className="text-3xl font-black text-slate-700">${breakEvenRate.toFixed(2)}</div>
+                                <div className="text-xs text-slate-400">per billable hour</div>
+                            </div>
+                            <div>
+                                <div className="text-slate-500 text-xs font-medium uppercase mb-1">Net Margin</div>
+                                <div className={`text-3xl font-black ${profitMargin >= 20 ? 'text-emerald-600' : 'text-amber-500'}`}>
+                                    {profitMargin.toFixed(1)}%
+                                </div>
+                                <div className="text-xs text-slate-400">Target: 20.0%</div>
+                            </div>
+                            <div>
+                                <div className="text-slate-500 text-xs font-medium uppercase mb-1">Annual Net Profit</div>
+                                <div className="text-3xl font-black text-slate-900">${annualProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                <div className="text-xs text-slate-400">per technician</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Visual Breakdown */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                                <PieChart size={20} className="text-blue-600" /> Cost Structure Analysis
+                            </h3>
+                            <div className="space-y-6">
+                                <div className="relative pt-2">
+                                    <div className="flex mb-2 items-center justify-between">
+                                        <div className="text-xs font-semibold inline-block uppercase text-emerald-600">Labor & Benefits</div>
+                                        <div className="text-xs font-semibold inline-block text-emerald-600">${totalAnnualLaborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                    </div>
+                                    <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-emerald-100">
+                                        <div style={{ width: `${(totalAnnualLaborCost / totalAnnualCostPerEmp) * 100}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-emerald-500"></div>
+                                    </div>
+
+                                    <div className="flex mb-2 items-center justify-between">
+                                        <div className="text-xs font-semibold inline-block uppercase text-amber-600">Variable Overhead</div>
+                                        <div className="text-xs font-semibold inline-block text-amber-600">${totalAnnualVariablePerEmp.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                    </div>
+                                    <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-amber-100">
+                                        <div style={{ width: `${(totalAnnualVariablePerEmp / totalAnnualCostPerEmp) * 100}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-amber-500"></div>
+                                    </div>
+
+                                    <div className="flex mb-2 items-center justify-between">
+                                        <div className="text-xs font-semibold inline-block uppercase text-indigo-600">Fixed Overhead Share</div>
+                                        <div className="text-xs font-semibold inline-block text-indigo-600">${fixedCostAllocatedPerEmp.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                    </div>
+                                    <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-100">
+                                        <div style={{ width: `${(fixedCostAllocatedPerEmp / totalAnnualCostPerEmp) * 100}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-500"></div>
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-slate-50 rounded text-xs text-slate-600 italic">
+                                    "To cover the total cost of <strong>${totalAnnualCostPerEmp.toLocaleString()}</strong> per technician, each tech must generate <strong>${breakEvenRate.toFixed(2)}</strong> for every billable hour worked."
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                                <TrendingUp size={20} className="text-blue-600" /> Sensitivity Analysis
+                            </h3>
+                            <p className="text-xs text-slate-500 mb-4">Impact of technician utilization (efficiency) on annual net profit.</p>
+
+                            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-500 font-semibold">
+                                        <tr>
+                                            <th className="p-3">Utilization</th>
+                                            <th className="p-3 text-right">Net Margin</th>
+                                            <th className="p-3 text-right">Annual Profit</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {scenarios.map((s, i) => (
+                                            <tr key={i} className={s.isCurrent ? "bg-blue-50 font-bold" : ""}>
+                                                <td className="p-3 flex items-center gap-2">
+                                                    {s.util}%
+                                                    {s.isCurrent && <span className="px-2 py-0.5 bg-blue-200 text-blue-800 text-[10px] rounded-full uppercase">Current</span>}
+                                                </td>
+                                                <td className={`p-3 text-right ${s.margin < 0 ? 'text-red-500' : 'text-slate-700'}`}>{s.margin.toFixed(1)}%</td>
+                                                <td className={`p-3 text-right ${s.profit < 0 ? 'text-red-500' : 'text-emerald-600'}`}>${s.profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Detailed Tables */}
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-900 mb-6 mt-8 border-b border-gray-200 pb-2">Detailed Expense Breakdown</h3>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm">
+
+                            {/* Table 1: Labor */}
+                            <div className="space-y-2">
+                                <h4 className="font-bold text-emerald-700 uppercase text-xs tracking-wider">Labor & Benefits</h4>
+                                <table className="w-full border-collapse">
+                                    <tbody className="divide-y divide-gray-100 border-t border-gray-200">
+                                        <tr>
+                                            <td className="py-2 text-slate-600">Base Wage</td>
+                                            <td className="py-2 text-right font-medium">${coreHourly.wage.value.toFixed(2)}/hr</td>
+                                        </tr>
+                                        <tr>
+                                            <td className="py-2 text-slate-600">Taxes & Insurance</td>
+                                            <td className="py-2 text-right font-medium">Included</td>
+                                        </tr>
+                                        {benefitsList.items.map(item => (
+                                            <tr key={item.id}>
+                                                <td className="py-2 text-slate-600">{item.name}</td>
+                                                <td className="py-2 text-right text-slate-400">${item.value.toLocaleString()} <span className="text-[10px] uppercase">{item.unit === 'days' ? 'Days' : item.freq}</span></td>
+                                            </tr>
+                                        ))}
+                                        <tr className="bg-emerald-50 border-t border-emerald-100 font-bold">
+                                            <td className="py-2 px-2 text-emerald-900">Total Labor Annual</td>
+                                            <td className="py-2 px-2 text-right text-emerald-900">${totalAnnualLaborCost.toLocaleString()}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Table 2: Variable */}
+                            <div className="space-y-2">
+                                <h4 className="font-bold text-amber-700 uppercase text-xs tracking-wider">Variable Expenses</h4>
+                                <table className="w-full border-collapse">
+                                    <tbody className="divide-y divide-gray-100 border-t border-gray-200">
+                                        <tr>
+                                            <td className="py-2 text-slate-600">Fuel Cost</td>
+                                            <td className="py-2 text-right font-medium">${gasParams.annualCost.toLocaleString()}</td>
+                                        </tr>
+                                        {variableOverhead.map(cat =>
+                                            cat.items.map(item => (
+                                                <tr key={`${cat.id}-${item.id}`}>
+                                                    <td className="py-2 text-slate-600">{item.name} <span className="text-xs text-gray-300">({cat.name})</span></td>
+                                                    <td className="py-2 text-right text-slate-400">${item.value.toLocaleString()} <span className="text-[10px] uppercase">{item.freq}</span></td>
+                                                </tr>
+                                            ))
+                                        )}
+                                        <tr className="bg-amber-50 border-t border-amber-100 font-bold">
+                                            <td className="py-2 px-2 text-amber-900">Total Variable Annual</td>
+                                            <td className="py-2 px-2 text-right text-amber-900">${totalAnnualVariablePerEmp.toLocaleString()}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Table 3: Fixed */}
+                            <div className="space-y-2 md:col-span-2">
+                                <h4 className="font-bold text-indigo-700 uppercase text-xs tracking-wider">Fixed Overhead (Company Wide)</h4>
+                                <p className="text-xs text-gray-400">These costs are divided by {numEmployees} technician(s).</p>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-2">
+                                    {fixedOverhead.flatMap(cat =>
+                                        cat.items.map(item => (
+                                            <div key={`${cat.id}-${item.id}`} className="flex justify-between py-1 border-b border-gray-50">
+                                                <span className="text-slate-600">{item.name}</span>
+                                                <span className="text-slate-400">${item.value.toLocaleString()} <span className="text-[10px] uppercase">{item.freq}</span></span>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                                <div className="bg-indigo-50 border border-indigo-100 font-bold p-2 mt-2 flex justify-between rounded">
+                                    <span className="text-indigo-900">Total Allocation Per Tech</span>
+                                    <span className="text-indigo-900">${fixedCostAllocatedPerEmp.toLocaleString()}</span>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    {/* Signature / Notes Section for Print */}
+                    <div className="hidden print:block mt-12 pt-8 border-t border-slate-300">
+                        <div className="grid grid-cols-2 gap-12">
+                            <div>
+                                <div className="h-8 border-b border-slate-300 mb-1"></div>
+                                <div className="text-xs text-slate-400 uppercase">Prepared By</div>
+                            </div>
+                            <div>
+                                <div className="h-8 border-b border-slate-300 mb-1"></div>
+                                <div className="text-xs text-slate-400 uppercase">Approved By</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // --- COMPONENT: COMPOUND INPUT GROUP ---
 const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workDays, hoursPerDay, wage }) => {
@@ -48,6 +328,8 @@ const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workD
         let baseValue = item.value;
         if (item.unit === 'hours') {
             baseValue = item.value * wage;
+        } else if (item.unit === 'days') {
+            baseValue = item.value * wage * hoursPerDay;
         }
         return sum + freqConfig.toAnnual(baseValue, workDays, hoursPerDay);
     }, 0);
@@ -80,13 +362,19 @@ const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workD
         setIsEditingName(false);
     };
 
+    const getUnitColor = (u) => {
+        if (u === 'hours') return 'text-blue-600';
+        if (u === 'days') return 'text-purple-600';
+        return 'text-green-600';
+    };
+
     return (
         <div className="border-b border-gray-100 last:border-0">
             {/* Header Row */}
             <div className="flex items-center justify-between py-3 px-2 hover:bg-slate-50 transition-colors group">
                 <div className="flex items-center gap-2 flex-grow">
-                    <button onClick={() => setIsOpen(!isOpen)} className="p-1">
-                        {isOpen ? <Minus size={14} className="text-blue-500" /> : <Plus size={14} className="text-slate-400" />}
+                    <button onClick={() => setIsOpen(!isOpen)} className="p-1 hover:bg-slate-200 rounded-full transition-colors">
+                        {isOpen ? <ChevronUp size={16} className="text-blue-600" /> : <ChevronDown size={16} className="text-slate-400" />}
                     </button>
 
                     {isEditingName ? (
@@ -148,10 +436,11 @@ const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workD
                                     <select
                                         value={item.unit || 'currency'}
                                         onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)}
-                                        className={`appearance-none font-bold border-none bg-transparent text-right w-10 focus:ring-0 cursor-pointer ${item.unit === 'hours' ? 'text-blue-600' : 'text-green-600'}`}
+                                        className={`appearance-none font-bold border-none bg-transparent text-right w-12 focus:ring-0 cursor-pointer ${getUnitColor(item.unit)}`}
                                     >
                                         <option value="currency">$</option>
                                         <option value="hours">Hr</option>
+                                        <option value="days">Dy</option>
                                     </select>
                                 </div>
 
@@ -167,7 +456,7 @@ const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workD
                                     <select
                                         value={item.freq}
                                         onChange={(e) => handleItemChange(item.id, 'freq', e.target.value)}
-                                        className="appearance-none bg-gray-100 border border-gray-200 text-gray-600 py-1 pl-2 pr-6 rounded focus:ring-2 focus:ring-blue-500 outline-none text-xs font-medium w-[75px]"
+                                        className="appearance-none bg-gray-100 border border-gray-200 text-gray-600 py-1 pl-2 pr-6 rounded focus:ring-2 focus:ring-blue-500 outline-none text-xs font-medium w-[80px]"
                                     >
                                         {FREQUENCIES.map(f => (
                                             <option key={f.value} value={f.value}>{f.label}</option>
@@ -234,14 +523,17 @@ const InputRow = ({ label, data, onChange, className = "", children, readOnly = 
     </div>
 );
 
-export default function HvacCalculator() {
+export default function App() {
     // --- STATE MANAGEMENT ---
     const fileInputRef = useRef(null);
+
+    // Report View Toggle
+    const [showReport, setShowReport] = useState(false);
 
     // Global Settings
     const [numEmployees, setNumEmployees] = useState(1);
     const [utilizationRate, setUtilizationRate] = useState(65);
-    const [workDays, setWorkDays] = useState(245);
+    const [baseWorkDays, setBaseWorkDays] = useState(261);
     const [hoursPerDay, setHoursPerDay] = useState(9);
     const [location, setLocation] = useState('WI');
     const [targetRate, setTargetRate] = useState(200);
@@ -259,6 +551,8 @@ export default function HvacCalculator() {
     // 2. BENEFITS & PERKS (Consolidated Default List)
     const [benefitsList, setBenefitsList] = useState({
         id: 'general', name: 'Benefits List', items: [
+            { id: 'pto', name: 'Paid Time Off', value: 10, freq: 'yearly', unit: 'days' },
+            { id: 'holidays', name: 'Paid Holidays', value: 6, freq: 'yearly', unit: 'days' },
             { id: 1, name: 'Health Reimbursement', value: 1000, freq: 'monthly', unit: 'currency' },
             { id: 2, name: 'Paid Lunch', value: 1, freq: 'daily', unit: 'hours' },
             { id: 3, name: 'Investment Plan', value: 400, freq: 'monthly', unit: 'currency' },
@@ -311,10 +605,8 @@ export default function HvacCalculator() {
             ]
         },
         {
-            id: 'other', name: 'Other (PTO/Vlog)', items: [
+            id: 'other', name: 'Other (Vlog/Misc)', items: [
                 { id: 1, name: 'Vlog Editing', value: 4900, freq: 'yearly', unit: 'currency' },
-                { id: 2, name: 'PTO Cost', value: 80, freq: 'yearly', unit: 'hours' },
-                { id: 3, name: 'Paid Holidays', value: 48, freq: 'yearly', unit: 'hours' },
                 { id: 4, name: 'Bad Debt (1%)', value: 3000, freq: 'yearly', unit: 'currency' }
             ]
         }
@@ -402,7 +694,7 @@ export default function HvacCalculator() {
             version: '1.5',
             numEmployees,
             utilizationRate,
-            workDays,
+            baseWorkDays, // Export base days
             hoursPerDay,
             location,
             targetRate,
@@ -435,7 +727,9 @@ export default function HvacCalculator() {
                 const data = JSON.parse(e.target.result);
                 if (data.numEmployees !== undefined) setNumEmployees(data.numEmployees);
                 if (data.utilizationRate !== undefined) setUtilizationRate(data.utilizationRate);
-                if (data.workDays !== undefined) setWorkDays(data.workDays);
+                if (data.baseWorkDays !== undefined) setBaseWorkDays(data.baseWorkDays); // Import base
+                else if (data.workDays !== undefined) setBaseWorkDays(data.workDays); // Fallback for old files
+
                 if (data.hoursPerDay !== undefined) setHoursPerDay(data.hoursPerDay);
                 if (data.location) setLocation(data.location);
                 if (data.targetRate !== undefined) setTargetRate(data.targetRate);
@@ -472,6 +766,16 @@ export default function HvacCalculator() {
     };
 
 
+    // --- DERIVED STATE: DAYS CALCULATION ---
+    // Find PTO and Holiday items from the benefits list to subtract
+    const ptoItem = benefitsList.items.find(i => i.id === 'pto');
+    const holidayItem = benefitsList.items.find(i => i.id === 'holidays');
+
+    const ptoDays = ptoItem && ptoItem.unit === 'days' ? ptoItem.value : 0;
+    const holidayDays = holidayItem && holidayItem.unit === 'days' ? holidayItem.value : 0;
+
+    const workDays = Math.max(0, baseWorkDays - ptoDays - holidayDays);
+
     // --- EFFECT: AUTO-CALCULATE GAS ---
     useEffect(() => {
         const dailyCost = (gasParams.milesPerDay / gasParams.mpg) * gasParams.gasPrice;
@@ -488,6 +792,8 @@ export default function HvacCalculator() {
         if (item.unit === 'hours') {
             const currentWage = coreHourly.wage.value;
             baseValue = item.value * currentWage;
+        } else if (item.unit === 'days') {
+            baseValue = item.value * coreHourly.wage.value * hoursPerDay;
         }
         return freqConfig.toAnnual(baseValue, workDays, hoursPerDay);
     };
@@ -499,6 +805,8 @@ export default function HvacCalculator() {
             let baseValue = item.value;
             if (item.unit === 'hours') {
                 baseValue = item.value * coreHourly.wage.value;
+            } else if (item.unit === 'days') {
+                baseValue = item.value * coreHourly.wage.value * hoursPerDay;
             }
             return sum + freqConfig.toAnnual(baseValue, workDays, hoursPerDay);
         }, 0);
@@ -550,6 +858,21 @@ export default function HvacCalculator() {
     } else if (profitMargin > 0) {
         marginColor = "text-amber-500";
         barColor = "bg-amber-500";
+    }
+
+    // --- RENDER LOGIC ---
+
+    // Pack all calculated data into an object for the ReportView
+    const calculatedData = {
+        numEmployees, utilizationRate, workDays, hoursPerDay, location, targetRate, includeCCFee,
+        breakEvenRate, profitMargin, profitPerHour,
+        totalAnnualCostPerEmp, totalAnnualLaborCost, totalAnnualVariablePerEmp, fixedCostAllocatedPerEmp,
+        coreHourly, benefitsList, variableOverhead, gasParams, fixedOverhead,
+        billableHours, baseWorkDays, ptoDays, holidayDays
+    };
+
+    if (showReport) {
+        return <ReportView data={calculatedData} onClose={() => setShowReport(false)} />;
     }
 
     return (
@@ -612,15 +935,24 @@ export default function HvacCalculator() {
 
                     {/* TOP LEVEL CONTROLS */}
                     <div className="flex flex-wrap gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                        <div className="flex flex-col">
-                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Work Days/Yr</label>
-                            <div className="relative">
-                                <input
-                                    type="number"
-                                    value={workDays}
-                                    onChange={(e) => setWorkDays(parseInt(e.target.value) || 0)}
-                                    className="w-24 font-bold text-slate-900 bg-slate-50 border rounded px-2 py-1"
-                                />
+                        {/* REPORT BUTTON */}
+                        <button
+                            onClick={() => setShowReport(true)}
+                            className="flex flex-col items-center justify-center px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-sm"
+                        >
+                            <FileText size={20} className="mb-1" />
+                            <span className="text-xs font-bold uppercase">Generate Report</span>
+                        </button>
+
+                        <div className="flex flex-col w-[160px]">
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Working Days</label>
+                            <div className="bg-slate-50 border rounded px-2 py-1 text-sm h-[38px] flex items-center">
+                                <div className="leading-none">
+                                    <span className="font-bold text-slate-900 text-lg">{workDays}</span>
+                                    <div className="text-[9px] text-gray-500 leading-tight">
+                                        {baseWorkDays} - <span className="text-red-500">{ptoDays + holidayDays} Off</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -632,7 +964,7 @@ export default function HvacCalculator() {
                                     type="number"
                                     value={hoursPerDay}
                                     onChange={(e) => setHoursPerDay(parseFloat(e.target.value) || 0)}
-                                    className="w-24 font-bold text-slate-900 bg-slate-50 border rounded px-2 py-1"
+                                    className="w-24 font-bold text-slate-900 bg-slate-50 border rounded px-2 py-1 h-[38px]"
                                     step="0.5"
                                 />
                             </div>
@@ -640,10 +972,10 @@ export default function HvacCalculator() {
 
                         <div className="flex flex-col">
                             <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Techs</label>
-                            <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
-                                <button onClick={() => setNumEmployees(Math.max(1, numEmployees - 1))} className="p-2 hover:bg-white rounded-md shadow-sm transition-all"><ChevronDown size={16} /></button>
+                            <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1 h-[38px]">
+                                <button onClick={() => setNumEmployees(Math.max(1, numEmployees - 1))} className="p-1 hover:bg-white rounded-md shadow-sm transition-all"><ChevronDown size={16} /></button>
                                 <span className="font-bold w-8 text-center">{numEmployees}</span>
-                                <button onClick={() => setNumEmployees(numEmployees + 1)} className="p-2 hover:bg-white rounded-md shadow-sm transition-all"><ChevronUp size={16} /></button>
+                                <button onClick={() => setNumEmployees(numEmployees + 1)} className="p-1 hover:bg-white rounded-md shadow-sm transition-all"><ChevronUp size={16} /></button>
                             </div>
                         </div>
 
@@ -710,6 +1042,9 @@ export default function HvacCalculator() {
                                             hoursPerDay={hoursPerDay}
                                             wage={coreHourly.wage.value}
                                         />
+                                        <div className="text-[10px] text-gray-400 italic mt-2 bg-blue-50 p-2 rounded">
+                                            Note: Items marked as <strong>Dy</strong> (Days) will be subtracted from the annual working days automatically.
+                                        </div>
                                     </div>
 
                                     <div className="mt-4 pt-3 border-t border-gray-200 flex justify-between font-bold text-slate-700 text-sm">
