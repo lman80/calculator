@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calculator, Users, TrendingUp, DollarSign, AlertCircle, PieChart, Settings, ChevronDown, ChevronUp, Plus, Minus, Clock, Fuel, MapPin, Target, Trash2, Download, Upload, Check, X, Edit2 } from 'lucide-react';
+import { Calculator, Users, TrendingUp, DollarSign, AlertCircle, PieChart, Settings, ChevronDown, ChevronUp, Plus, Minus, Clock, Fuel, MapPin, Target, Trash2, Download, Upload, Check, X, Edit2, CreditCard } from 'lucide-react';
 
 const Card = ({ children, className = "" }) => (
     <div className={`bg-white rounded-xl shadow-sm border border-gray-200 ${className}`}>
@@ -7,7 +7,7 @@ const Card = ({ children, className = "" }) => (
     </div>
 );
 
-const SectionHeader = ({ title, icon: Icon, isOpen, onClick }) => (
+const SectionHeader = ({ title, icon: Icon, isOpen, onClick, value }) => (
     <button
         onClick={onClick}
         className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors border-b border-gray-200 font-medium text-gray-700"
@@ -16,25 +16,31 @@ const SectionHeader = ({ title, icon: Icon, isOpen, onClick }) => (
             <Icon size={20} className="text-blue-600" />
             <span>{title}</span>
         </div>
-        {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        <div className="flex items-center gap-3">
+            {value && (
+                <span className="text-sm font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-gray-200 shadow-sm">
+                    {value}
+                </span>
+            )}
+            {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </div>
     </button>
 );
 
 // Frequency Options and Multipliers
 const FREQUENCIES = [
-    { value: 'hourly', label: '/hr', toAnnual: (val, days) => val * days * 8 },
+    { value: 'hourly', label: '/hr', toAnnual: (val, days, hours) => val * days * hours },
     { value: 'daily', label: '/day', toAnnual: (val, days) => val * days },
     { value: 'monthly', label: '/mo', toAnnual: (val) => val * 12 },
     { value: 'yearly', label: '/yr', toAnnual: (val) => val },
 ];
 
 // --- COMPONENT: COMPOUND INPUT GROUP ---
-const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workDays, wage }) => {
+const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workDays, hoursPerDay, wage }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [isEditingName, setIsEditingName] = useState(false);
     const [tempName, setTempName] = useState(category.name);
 
-    // Calculate total annual cost for this group
     const groupAnnualTotal = category.items.reduce((sum, item) => {
         const freqConfig = FREQUENCIES.find(f => f.value === item.freq);
         if (!freqConfig) return sum;
@@ -43,10 +49,9 @@ const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workD
         if (item.unit === 'hours') {
             baseValue = item.value * wage;
         }
-        return sum + freqConfig.toAnnual(baseValue, workDays);
+        return sum + freqConfig.toAnnual(baseValue, workDays, hoursPerDay);
     }, 0);
 
-    // Handlers for manipulating the items list
     const handleItemChange = (itemId, field, value) => {
         const newItems = category.items.map(item =>
             item.id === itemId ? { ...item, [field]: value } : item
@@ -63,7 +68,7 @@ const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workD
             unit: 'currency'
         };
         onUpdateItems(category.id, [...category.items, newItem]);
-        setIsOpen(true); // Auto open when adding
+        setIsOpen(true);
     };
 
     const removeItem = (itemId) => {
@@ -130,8 +135,6 @@ const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workD
                 <div className="bg-slate-50 p-3 space-y-3 rounded-lg mb-2 animate-in slide-in-from-top-1">
                     {category.items.map((item) => (
                         <div key={item.id} className="flex flex-wrap items-center gap-y-2 gap-x-2 text-sm bg-white p-2 rounded shadow-sm border border-gray-200">
-
-                            {/* Name Input */}
                             <input
                                 type="text"
                                 value={item.name}
@@ -140,7 +143,6 @@ const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workD
                                 placeholder="Item Name"
                             />
 
-                            {/* Controls */}
                             <div className="flex items-center gap-2 ml-auto">
                                 <div className="relative shrink-0">
                                     <select
@@ -240,20 +242,21 @@ export default function HvacCalculator() {
     const [numEmployees, setNumEmployees] = useState(1);
     const [utilizationRate, setUtilizationRate] = useState(65);
     const [workDays, setWorkDays] = useState(245);
+    const [hoursPerDay, setHoursPerDay] = useState(9);
     const [location, setLocation] = useState('WI');
-    const [targetRate, setTargetRate] = useState(340);
+    const [targetRate, setTargetRate] = useState(200);
+    const [includeCCFee, setIncludeCCFee] = useState(true); // Toggle state for CC Fee
 
-    // Export Settings
     const [isExporting, setIsExporting] = useState(false);
     const [exportName, setExportName] = useState(`hvac_config_${new Date().toISOString().slice(0, 10)}`);
 
     // 1. HOURLY WAGE & CORE TAXES
     const [coreHourly, setCoreHourly] = useState({
-        wage: { value: 30.00, freq: 'hourly', unit: 'currency' },
+        wage: { value: 50.00, freq: 'hourly', unit: 'currency' },
         insurance: { value: 2.00, freq: 'hourly', unit: 'currency' },
     });
 
-    // 2. BENEFITS & PERKS (Simple array for now, could be array of groups if needed but simpler as one list)
+    // 2. BENEFITS & PERKS (Consolidated Default List)
     const [benefitsList, setBenefitsList] = useState({
         id: 'general', name: 'Benefits List', items: [
             { id: 1, name: 'Health Reimbursement', value: 1000, freq: 'monthly', unit: 'currency' },
@@ -266,14 +269,15 @@ export default function HvacCalculator() {
         ]
     });
 
-    // 3. VARIABLE OVERHEAD (Array of Category Objects)
+    // 3. VARIABLE OVERHEAD (Consolidated Categories)
     const [variableOverhead, setVariableOverhead] = useState([
         {
             id: 'trucks', name: 'Trucks', items: [
                 { id: 1, name: 'Lease Payment', value: 3000, freq: 'yearly', unit: 'currency' },
                 { id: 2, name: 'Bouncie Tracker', value: 10, freq: 'monthly', unit: 'currency' },
                 { id: 3, name: 'Maintanance', value: 2000, freq: 'yearly', unit: 'currency' },
-                { id: 4, name: 'Insurance', value: 100, freq: 'monthly', unit: 'currency' }
+                { id: 4, name: 'Insurance', value: 100, freq: 'monthly', unit: 'currency' },
+                { id: 5, name: 'Vehicle Branding', value: 1000, freq: 'yearly', unit: 'currency' }
             ]
         },
         {
@@ -310,7 +314,8 @@ export default function HvacCalculator() {
             id: 'other', name: 'Other (PTO/Vlog)', items: [
                 { id: 1, name: 'Vlog Editing', value: 4900, freq: 'yearly', unit: 'currency' },
                 { id: 2, name: 'PTO Cost', value: 80, freq: 'yearly', unit: 'hours' },
-                { id: 3, name: 'Paid Holidays', value: 48, freq: 'yearly', unit: 'hours' }
+                { id: 3, name: 'Paid Holidays', value: 48, freq: 'yearly', unit: 'hours' },
+                { id: 4, name: 'Bad Debt (1%)', value: 3000, freq: 'yearly', unit: 'currency' }
             ]
         }
     ]);
@@ -324,7 +329,7 @@ export default function HvacCalculator() {
         annualCost: 3920.00
     });
 
-    // 4. FIXED OVERHEAD (Array of Category Objects)
+    // 4. FIXED OVERHEAD (Consolidated Categories)
     const [fixedOverhead, setFixedOverhead] = useState([
         {
             id: 'software', name: 'Software', items: [
@@ -340,14 +345,15 @@ export default function HvacCalculator() {
         },
         {
             id: 'utilities', name: 'Utilities', items: [
-                { id: 1, name: 'Gas, Elec, Wifi', value: 1000, freq: 'monthly', unit: 'currency' }
+                { id: 1, name: 'Gas, Elec, Wifi, Garbage', value: 1000, freq: 'monthly', unit: 'currency' }
             ]
         },
         {
             id: 'professional', name: 'Professional Fees', items: [
                 { id: 1, name: 'Accountant', value: 10000, freq: 'yearly', unit: 'currency' },
                 { id: 2, name: 'Bank Fees', value: 0, freq: 'yearly', unit: 'currency' },
-                { id: 3, name: 'Licensing', value: 1000, freq: 'yearly', unit: 'currency' }
+                { id: 3, name: 'Licensing', value: 1000, freq: 'yearly', unit: 'currency' },
+                { id: 4, name: 'Recruiting', value: 1500, freq: 'yearly', unit: 'currency' }
             ]
         },
         {
@@ -375,25 +381,17 @@ export default function HvacCalculator() {
         setSectionsOpen(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    // --- HELPER FUNCTIONS FOR DYNAMIC LISTS ---
-
+    // --- HELPER FUNCTIONS ---
     const addCategory = (setter, list) => {
-        const newCat = {
-            id: Date.now().toString(),
-            name: 'New Category',
-            items: []
-        };
+        const newCat = { id: Date.now().toString(), name: 'New Category', items: [] };
         setter([...list, newCat]);
     };
-
     const deleteCategory = (setter, list, id) => {
         setter(list.filter(cat => cat.id !== id));
     };
-
     const renameCategory = (setter, list, id, newName) => {
         setter(list.map(cat => cat.id === id ? { ...cat, name: newName } : cat));
     };
-
     const updateCategoryItems = (setter, list, id, newItems) => {
         setter(list.map(cat => cat.id === id ? { ...cat, items: newItems } : cat));
     };
@@ -401,12 +399,14 @@ export default function HvacCalculator() {
     // --- EXPORT / IMPORT LOGIC ---
     const performExport = () => {
         const data = {
-            version: '1.1', // Bumped version for structure change
+            version: '1.5',
             numEmployees,
             utilizationRate,
             workDays,
+            hoursPerDay,
             location,
             targetRate,
+            includeCCFee, // Included in Export
             coreHourly,
             benefitsList,
             variableOverhead,
@@ -418,10 +418,8 @@ export default function HvacCalculator() {
         const href = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = href;
-
         const fileName = exportName.trim() ? exportName.trim() : 'hvac_config';
         link.download = fileName.endsWith('.json') ? fileName : `${fileName}.json`;
-
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -431,51 +429,40 @@ export default function HvacCalculator() {
     const handleImport = (event) => {
         const file = event.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-
                 if (data.numEmployees !== undefined) setNumEmployees(data.numEmployees);
                 if (data.utilizationRate !== undefined) setUtilizationRate(data.utilizationRate);
                 if (data.workDays !== undefined) setWorkDays(data.workDays);
+                if (data.hoursPerDay !== undefined) setHoursPerDay(data.hoursPerDay);
                 if (data.location) setLocation(data.location);
                 if (data.targetRate !== undefined) setTargetRate(data.targetRate);
+                if (data.includeCCFee !== undefined) setIncludeCCFee(data.includeCCFee); // Import Setting
                 if (data.coreHourly) setCoreHourly(data.coreHourly);
                 if (data.benefitsList) setBenefitsList(data.benefitsList);
-
-                // Handle migration from object to array if importing old file
                 if (data.variableOverhead) {
                     if (Array.isArray(data.variableOverhead)) {
                         setVariableOverhead(data.variableOverhead);
                     } else {
-                        // Simple migration for old object structure
                         const newArr = Object.keys(data.variableOverhead).map(key => ({
-                            id: key,
-                            name: key.charAt(0).toUpperCase() + key.slice(1),
-                            items: data.variableOverhead[key]
+                            id: key, name: key.charAt(0).toUpperCase() + key.slice(1), items: data.variableOverhead[key]
                         }));
                         setVariableOverhead(newArr);
                     }
                 }
-
                 if (data.gasParams) setGasParams(data.gasParams);
-
                 if (data.fixedOverhead) {
                     if (Array.isArray(data.fixedOverhead)) {
                         setFixedOverhead(data.fixedOverhead);
                     } else {
-                        // Simple migration for old object structure
                         const newArr = Object.keys(data.fixedOverhead).map(key => ({
-                            id: key,
-                            name: key.charAt(0).toUpperCase() + key.slice(1),
-                            items: data.fixedOverhead[key]
+                            id: key, name: key.charAt(0).toUpperCase() + key.slice(1), items: data.fixedOverhead[key]
                         }));
                         setFixedOverhead(newArr);
                     }
                 }
-
             } catch (error) {
                 console.error('Error parsing JSON:', error);
             }
@@ -493,7 +480,7 @@ export default function HvacCalculator() {
     }, [gasParams.milesPerDay, gasParams.mpg, gasParams.gasPrice, workDays]);
 
 
-    // --- HELPER: Get Annual Cost from Simple Item ---
+    // --- HELPERS & CALCULATIONS ---
     const getSimpleAnnual = (item) => {
         const freqConfig = FREQUENCIES.find(f => f.value === item.freq);
         if (!freqConfig) return 0;
@@ -502,10 +489,9 @@ export default function HvacCalculator() {
             const currentWage = coreHourly.wage.value;
             baseValue = item.value * currentWage;
         }
-        return freqConfig.toAnnual(baseValue, workDays);
+        return freqConfig.toAnnual(baseValue, workDays, hoursPerDay);
     };
 
-    // --- HELPER: Get Annual Cost from Compound List ---
     const getCompoundAnnual = (items) => {
         return items.reduce((sum, item) => {
             const freqConfig = FREQUENCIES.find(f => f.value === item.freq);
@@ -514,27 +500,20 @@ export default function HvacCalculator() {
             if (item.unit === 'hours') {
                 baseValue = item.value * coreHourly.wage.value;
             }
-            return sum + freqConfig.toAnnual(baseValue, workDays);
+            return sum + freqConfig.toAnnual(baseValue, workDays, hoursPerDay);
         }, 0);
     };
 
-    // --- CALCULATIONS ---
-
     // 1. Time
-    const hoursPerDay = 8;
     const totalAnnualHours = workDays * hoursPerDay;
     const billableHours = totalAnnualHours * (utilizationRate / 100);
 
     // 2. Labor & Benefits
     const annualWage = getSimpleAnnual(coreHourly.wage);
     const annualInsurance = getSimpleAnnual(coreHourly.insurance);
-
-    // FICA & Unemployment
     const annualFica = annualWage * 0.0765;
     const hourlyFicaDisplay = (annualFica / totalAnnualHours).toFixed(2);
     const annualUnemployment = location === 'WI' ? 430 : 507.93;
-
-    // Compound Benefits
     const annualBenefitsTotal = getCompoundAnnual(benefitsList.items);
     const hourlyBenefitsTotal = annualBenefitsTotal / totalAnnualHours;
 
@@ -556,8 +535,11 @@ export default function HvacCalculator() {
     const hourlyCostToBusiness = totalAnnualCostPerEmp / totalAnnualHours;
     const breakEvenRate = totalAnnualCostPerEmp / billableHours;
 
-    // 6. Margin
-    const profitPerHour = targetRate - breakEvenRate;
+    // 6. Margin & Fees
+    const ccFeePerHour = targetRate * 0.03;
+
+    // Net Profit = Rate - Costs - (Toggle ? Fee : 0)
+    const profitPerHour = targetRate - breakEvenRate - (includeCCFee ? ccFeePerHour : 0);
     const profitMargin = targetRate > 0 ? (profitPerHour / targetRate) * 100 : 0;
 
     let marginColor = "text-red-600";
@@ -642,6 +624,20 @@ export default function HvacCalculator() {
                             </div>
                         </div>
 
+                        {/* NEW: HOURS PER DAY */}
+                        <div className="flex flex-col">
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Hours/Day</label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    value={hoursPerDay}
+                                    onChange={(e) => setHoursPerDay(parseFloat(e.target.value) || 0)}
+                                    className="w-24 font-bold text-slate-900 bg-slate-50 border rounded px-2 py-1"
+                                    step="0.5"
+                                />
+                            </div>
+                        </div>
+
                         <div className="flex flex-col">
                             <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Techs</label>
                             <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
@@ -683,6 +679,7 @@ export default function HvacCalculator() {
                                 icon={DollarSign}
                                 isOpen={sectionsOpen.hourly}
                                 onClick={() => toggleSection('hourly')}
+                                value={`$${totalHourlyBurden.toFixed(2)} /hr`}
                             />
                             {sectionsOpen.hourly && (
                                 <div className="p-4 bg-white animate-in slide-in-from-top-2 duration-200">
@@ -710,6 +707,7 @@ export default function HvacCalculator() {
                                             category={benefitsList}
                                             onUpdateItems={(id, items) => setBenefitsList(p => ({ ...p, items }))}
                                             workDays={workDays}
+                                            hoursPerDay={hoursPerDay}
                                             wage={coreHourly.wage.value}
                                         />
                                     </div>
@@ -729,6 +727,7 @@ export default function HvacCalculator() {
                                 icon={TrendingUp}
                                 isOpen={sectionsOpen.variable}
                                 onClick={() => toggleSection('variable')}
+                                value={`$${totalAnnualVariablePerEmp.toLocaleString(undefined, { maximumFractionDigits: 0 })} /yr`}
                             />
                             {sectionsOpen.variable && (
                                 <div className="p-4 bg-white animate-in slide-in-from-top-2 duration-200">
@@ -770,6 +769,7 @@ export default function HvacCalculator() {
                                             onRename={(id, name) => renameCategory(setVariableOverhead, variableOverhead, id, name)}
                                             onDelete={(id) => deleteCategory(setVariableOverhead, variableOverhead, id)}
                                             workDays={workDays}
+                                            hoursPerDay={hoursPerDay}
                                             wage={coreHourly.wage.value}
                                         />
                                     ))}
@@ -796,6 +796,7 @@ export default function HvacCalculator() {
                                 icon={Settings}
                                 isOpen={sectionsOpen.fixed}
                                 onClick={() => toggleSection('fixed')}
+                                value={`$${totalAnnualFixedCompany.toLocaleString(undefined, { maximumFractionDigits: 0 })} /yr`}
                             />
                             {sectionsOpen.fixed && (
                                 <div className="p-4 bg-white animate-in slide-in-from-top-2 duration-200">
@@ -809,6 +810,7 @@ export default function HvacCalculator() {
                                             onRename={(id, name) => renameCategory(setFixedOverhead, fixedOverhead, id, name)}
                                             onDelete={(id) => deleteCategory(setFixedOverhead, fixedOverhead, id)}
                                             workDays={workDays}
+                                            hoursPerDay={hoursPerDay}
                                             wage={coreHourly.wage.value}
                                         />
                                     ))}
@@ -942,8 +944,17 @@ export default function HvacCalculator() {
                                                 ${profitPerHour.toFixed(2)}
                                             </span>
                                         </div>
+                                        <div className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
+                                            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setIncludeCCFee(!includeCCFee)}>
+                                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${includeCCFee ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                                                    {includeCCFee && <Check size={10} className="text-white" />}
+                                                </div>
+                                                <span className="text-gray-500 flex items-center gap-1"><CreditCard size={12} /> Credit Card Fee (3%)</span>
+                                            </div>
+                                            <span className={includeCCFee ? "text-red-500" : "text-gray-300 line-through"}>-${ccFeePerHour.toFixed(2)}</span>
+                                        </div>
                                         <div className="flex justify-between items-center">
-                                            <span className="text-gray-600 font-medium">Net Profit Margin</span>
+                                            <span className="text-gray-600 font-medium">Real Net Profit Margin</span>
                                             <span className={`text-2xl font-black ${marginColor}`}>
                                                 {profitMargin.toFixed(1)}%
                                             </span>
