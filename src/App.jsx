@@ -711,6 +711,7 @@ export default function App() {
     const [location, setLocation] = useState('WI');
     const [targetRate, setTargetRate] = useState(200);
     const [includeCCFee, setIncludeCCFee] = useState(true); // Toggle state for CC Fee
+    const [ccFeePercentage, setCcFeePercentage] = useState(3.0); // New state for CC Fee Percentage
 
     const [isExporting, setIsExporting] = useState(false);
     const [exportName, setExportName] = useState(`hvac_config_${new Date().toISOString().slice(0, 10)}`);
@@ -874,6 +875,7 @@ export default function App() {
             location,
             targetRate,
             includeCCFee, // Included in Export
+            ccFeePercentage, // Export CC fee percentage
             coreHourly,
             benefitsList,
             variableOverhead,
@@ -909,6 +911,7 @@ export default function App() {
                 if (data.location) setLocation(data.location);
                 if (data.targetRate !== undefined) setTargetRate(data.targetRate);
                 if (data.includeCCFee !== undefined) setIncludeCCFee(data.includeCCFee); // Import Setting
+                if (data.ccFeePercentage !== undefined) setCcFeePercentage(data.ccFeePercentage); // Import CC fee percentage
                 if (data.coreHourly) setCoreHourly(data.coreHourly);
                 if (data.benefitsList) setBenefitsList(data.benefitsList);
                 if (data.variableOverhead) {
@@ -1019,7 +1022,7 @@ export default function App() {
     const breakEvenRate = totalAnnualCostPerEmp / billableHours;
 
     // 6. Margin & Fees
-    const ccFeePerHour = targetRate * 0.03;
+    const ccFeePerHour = targetRate * (ccFeePercentage / 100);
 
     // Net Profit = Rate - Costs - (Toggle ? Fee : 0)
     const profitPerHour = targetRate - breakEvenRate - (includeCCFee ? ccFeePerHour : 0);
@@ -1455,11 +1458,25 @@ export default function App() {
                                             </span>
                                         </div>
                                         <div className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
-                                            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setIncludeCCFee(!includeCCFee)}>
-                                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${includeCCFee ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
-                                                    {includeCCFee && <Check size={10} className="text-white" />}
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 cursor-pointer" onClick={() => setIncludeCCFee(!includeCCFee)}>
+                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${includeCCFee ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                                                        {includeCCFee && <Check size={10} className="text-white" />}
+                                                    </div>
+                                                    <span className="text-gray-500 flex items-center gap-1"><CreditCard size={12} /> CC Fee</span>
                                                 </div>
-                                                <span className="text-gray-500 flex items-center gap-1"><CreditCard size={12} /> Credit Card Fee (3%)</span>
+                                                {includeCCFee && (
+                                                    <div className="flex items-center relative">
+                                                        <input
+                                                            type="number"
+                                                            value={ccFeePercentage}
+                                                            onChange={(e) => setCcFeePercentage(parseFloat(e.target.value) || 0)}
+                                                            className="w-12 text-center font-bold text-xs border border-gray-300 rounded px-1 py-0.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            step="0.1"
+                                                        />
+                                                        <span className="text-xs text-gray-500 ml-1">%</span>
+                                                    </div>
+                                                )}
                                             </div>
                                             <span className={includeCCFee ? "text-red-500" : "text-gray-300 line-through"}>-${ccFeePerHour.toFixed(2)}</span>
                                         </div>
