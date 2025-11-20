@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calculator, Users, TrendingUp, DollarSign, AlertCircle, PieChart, Settings, ChevronDown, ChevronUp, Plus, Minus, Clock, Fuel, MapPin, Target, Trash2, Download, Upload } from 'lucide-react';
+import { Calculator, Users, TrendingUp, DollarSign, AlertCircle, PieChart, Settings, ChevronDown, ChevronUp, Plus, Minus, Clock, Fuel, MapPin, Target, Trash2, Download, Upload, Check, X, Edit2 } from 'lucide-react';
 
 const Card = ({ children, className = "" }) => (
     <div className={`bg-white rounded-xl shadow-sm border border-gray-200 ${className}`}>
@@ -29,69 +29,109 @@ const FREQUENCIES = [
 ];
 
 // --- COMPONENT: COMPOUND INPUT GROUP ---
-const CompoundInputGroup = ({ label, items, onUpdate, workDays, wage }) => {
+const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workDays, wage }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [tempName, setTempName] = useState(category.name);
 
     // Calculate total annual cost for this group
-    const groupAnnualTotal = items.reduce((sum, item) => {
+    const groupAnnualTotal = category.items.reduce((sum, item) => {
         const freqConfig = FREQUENCIES.find(f => f.value === item.freq);
         if (!freqConfig) return sum;
 
         let baseValue = item.value;
         if (item.unit === 'hours') {
-            // If unit is hours, we multiply by the hourly wage to get dollar value
             baseValue = item.value * wage;
         }
         return sum + freqConfig.toAnnual(baseValue, workDays);
     }, 0);
 
-    // Handlers for manipulating the list
-    const handleItemChange = (id, field, value) => {
-        const newItems = items.map(item =>
-            item.id === id ? { ...item, [field]: value } : item
+    // Handlers for manipulating the items list
+    const handleItemChange = (itemId, field, value) => {
+        const newItems = category.items.map(item =>
+            item.id === itemId ? { ...item, [field]: value } : item
         );
-        onUpdate(newItems);
+        onUpdateItems(category.id, newItems);
     };
 
     const addItem = () => {
         const newItem = {
             id: Date.now(),
-            name: 'New Item',
+            name: 'New Expense',
             value: 0,
             freq: 'yearly',
             unit: 'currency'
         };
-        onUpdate([...items, newItem]);
+        onUpdateItems(category.id, [...category.items, newItem]);
+        setIsOpen(true); // Auto open when adding
     };
 
-    const removeItem = (id) => {
-        onUpdate(items.filter(item => item.id !== id));
+    const removeItem = (itemId) => {
+        onUpdateItems(category.id, category.items.filter(item => item.id !== itemId));
+    };
+
+    const saveName = () => {
+        onRename(category.id, tempName);
+        setIsEditingName(false);
     };
 
     return (
         <div className="border-b border-gray-100 last:border-0">
-            {/* Header Row - Shows Label + Total Sum */}
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center justify-between py-3 px-2 hover:bg-slate-50 transition-colors"
-            >
-                <div className="flex items-center gap-2">
-                    {isOpen ? <Minus size={14} className="text-blue-500" /> : <Plus size={14} className="text-slate-400" />}
-                    <span className="text-sm font-medium text-slate-700">{label}</span>
+            {/* Header Row */}
+            <div className="flex items-center justify-between py-3 px-2 hover:bg-slate-50 transition-colors group">
+                <div className="flex items-center gap-2 flex-grow">
+                    <button onClick={() => setIsOpen(!isOpen)} className="p-1">
+                        {isOpen ? <Minus size={14} className="text-blue-500" /> : <Plus size={14} className="text-slate-400" />}
+                    </button>
+
+                    {isEditingName ? (
+                        <div className="flex items-center gap-1">
+                            <input
+                                type="text"
+                                value={tempName}
+                                onChange={(e) => setTempName(e.target.value)}
+                                className="text-sm font-bold text-slate-700 border-b border-blue-500 outline-none bg-transparent w-32"
+                                autoFocus
+                                onBlur={saveName}
+                                onKeyDown={(e) => e.key === 'Enter' && saveName()}
+                            />
+                            <button onClick={saveName} className="text-green-600"><Check size={14} /></button>
+                        </div>
+                    ) : (
+                        <span
+                            className="text-sm font-medium text-slate-700 cursor-pointer hover:text-blue-600 flex items-center gap-2"
+                            onClick={() => setIsEditingName(true)}
+                            title="Click to rename category"
+                        >
+                            {category.name}
+                        </span>
+                    )}
                 </div>
-                <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-slate-900">${groupAnnualTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    <span className="text-xs text-gray-400">/yr</span>
+
+                <div className="flex items-center gap-3">
+                    <div className="text-right">
+                        <span className="text-sm font-bold text-slate-900 block">${groupAnnualTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="text-[10px] text-gray-400 uppercase">/yr</span>
+                    </div>
+                    {onDelete && (
+                        <button
+                            onClick={() => onDelete(category.id)}
+                            className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                            title="Delete entire category"
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                    )}
                 </div>
-            </button>
+            </div>
 
             {/* Expanded List */}
             {isOpen && (
                 <div className="bg-slate-50 p-3 space-y-3 rounded-lg mb-2 animate-in slide-in-from-top-1">
-                    {items.map((item) => (
+                    {category.items.map((item) => (
                         <div key={item.id} className="flex flex-wrap items-center gap-y-2 gap-x-2 text-sm bg-white p-2 rounded shadow-sm border border-gray-200">
 
-                            {/* Name Input - Grows to fill available space */}
+                            {/* Name Input */}
                             <input
                                 type="text"
                                 value={item.name}
@@ -100,10 +140,8 @@ const CompoundInputGroup = ({ label, items, onUpdate, workDays, wage }) => {
                                 placeholder="Item Name"
                             />
 
-                            {/* Right side controls group - kept together to prevent awkward wrapping */}
+                            {/* Controls */}
                             <div className="flex items-center gap-2 ml-auto">
-
-                                {/* Unit Selector ($ or Hrs) */}
                                 <div className="relative shrink-0">
                                     <select
                                         value={item.unit || 'currency'}
@@ -115,7 +153,6 @@ const CompoundInputGroup = ({ label, items, onUpdate, workDays, wage }) => {
                                     </select>
                                 </div>
 
-                                {/* Value Input */}
                                 <input
                                     type="number"
                                     value={item.value}
@@ -124,7 +161,6 @@ const CompoundInputGroup = ({ label, items, onUpdate, workDays, wage }) => {
                                     step="0.01"
                                 />
 
-                                {/* Frequency Selector */}
                                 <div className="relative shrink-0">
                                     <select
                                         value={item.freq}
@@ -138,7 +174,6 @@ const CompoundInputGroup = ({ label, items, onUpdate, workDays, wage }) => {
                                     <ChevronDown size={12} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                                 </div>
 
-                                {/* Delete Button */}
                                 <button onClick={() => removeItem(item.id)} className="text-gray-300 hover:text-red-500 transition-colors p-1 shrink-0">
                                     <Trash2 size={14} />
                                 </button>
@@ -150,7 +185,7 @@ const CompoundInputGroup = ({ label, items, onUpdate, workDays, wage }) => {
                         onClick={addItem}
                         className="w-full py-2 border border-dashed border-gray-300 rounded text-xs font-medium text-gray-500 hover:bg-white hover:text-blue-600 hover:border-blue-300 transition-all flex items-center justify-center gap-1"
                     >
-                        <Plus size={12} /> Add Row to {label}
+                        <Plus size={12} /> Add Item to {category.name}
                     </button>
                 </div>
             )}
@@ -208,15 +243,19 @@ export default function HvacCalculator() {
     const [location, setLocation] = useState('WI');
     const [targetRate, setTargetRate] = useState(340);
 
-    // 1. HOURLY WAGE & CORE TAXES (Simple Inputs)
+    // Export Settings
+    const [isExporting, setIsExporting] = useState(false);
+    const [exportName, setExportName] = useState(`hvac_config_${new Date().toISOString().slice(0, 10)}`);
+
+    // 1. HOURLY WAGE & CORE TAXES
     const [coreHourly, setCoreHourly] = useState({
-        wage: { value: 30.00, freq: 'hourly', unit: 'currency' }, // Defaults from config file
+        wage: { value: 30.00, freq: 'hourly', unit: 'currency' },
         insurance: { value: 2.00, freq: 'hourly', unit: 'currency' },
     });
 
-    // 2. BENEFITS & PERKS (Compound List)
+    // 2. BENEFITS & PERKS (Simple array for now, could be array of groups if needed but simpler as one list)
     const [benefitsList, setBenefitsList] = useState({
-        general: [
+        id: 'general', name: 'Benefits List', items: [
             { id: 1, name: 'Health Reimbursement', value: 1000, freq: 'monthly', unit: 'currency' },
             { id: 2, name: 'Paid Lunch', value: 1, freq: 'daily', unit: 'hours' },
             { id: 3, name: 'Investment Plan', value: 400, freq: 'monthly', unit: 'currency' },
@@ -227,26 +266,54 @@ export default function HvacCalculator() {
         ]
     });
 
-    // 3. VARIABLE OVERHEAD (Compound Lists)
-    const [variableOverhead, setVariableOverhead] = useState({
-        trucks: [
-            { id: 1, name: 'Lease Payment', value: 3000, freq: 'yearly', unit: 'currency' },
-            { id: 1763604728438, name: 'Bouncie Tracker', value: 10, freq: 'monthly', unit: 'currency' },
-            { id: 1763604761322, name: 'Maintanance', value: 2000, freq: 'yearly', unit: 'currency' },
-            { id: 1763604950237, name: 'Insurance', value: 100, freq: 'monthly', unit: 'currency' }
-        ],
-        tools: [{ id: 1, name: 'New Setup', value: 2000, freq: 'yearly', unit: 'currency' }],
-        advertising: [{ id: 1, name: 'Ad Spend', value: 4000, freq: 'yearly', unit: 'currency' }],
-        training: [{ id: 1, name: 'Certifications', value: 500, freq: 'yearly', unit: 'currency' }],
-        uniforms: [{ id: 1, name: 'Shirts/Boots', value: 500, freq: 'yearly', unit: 'currency' }],
-        consumables: [{ id: 1, name: 'Zip Ties/Tape', value: 10, freq: 'daily', unit: 'currency' }],
-        warranty: [{ id: 1, name: 'Callback Fund', value: 0.5, freq: 'daily', unit: 'hours' }],
-        other: [
-            { id: 1, name: 'Vlog Editing', value: 4900, freq: 'yearly', unit: 'currency' },
-            { id: 2, name: 'PTO Cost', value: 80, freq: 'yearly', unit: 'hours' },
-            { id: 3, name: 'Paid Holidays', value: 48, freq: 'yearly', unit: 'hours' }
-        ]
-    });
+    // 3. VARIABLE OVERHEAD (Array of Category Objects)
+    const [variableOverhead, setVariableOverhead] = useState([
+        {
+            id: 'trucks', name: 'Trucks', items: [
+                { id: 1, name: 'Lease Payment', value: 3000, freq: 'yearly', unit: 'currency' },
+                { id: 2, name: 'Bouncie Tracker', value: 10, freq: 'monthly', unit: 'currency' },
+                { id: 3, name: 'Maintanance', value: 2000, freq: 'yearly', unit: 'currency' },
+                { id: 4, name: 'Insurance', value: 100, freq: 'monthly', unit: 'currency' }
+            ]
+        },
+        {
+            id: 'tools', name: 'Tools', items: [
+                { id: 1, name: 'New Setup', value: 2000, freq: 'yearly', unit: 'currency' }
+            ]
+        },
+        {
+            id: 'uniforms', name: 'Uniforms', items: [
+                { id: 1, name: 'Shirts/Boots', value: 500, freq: 'yearly', unit: 'currency' }
+            ]
+        },
+        {
+            id: 'consumables', name: 'Consumables', items: [
+                { id: 1, name: 'Zip Ties/Tape', value: 10, freq: 'daily', unit: 'currency' }
+            ]
+        },
+        {
+            id: 'warranty', name: 'Warranty', items: [
+                { id: 1, name: 'Callback Fund', value: 0.5, freq: 'daily', unit: 'hours' }
+            ]
+        },
+        {
+            id: 'training', name: 'Training', items: [
+                { id: 1, name: 'Certifications', value: 500, freq: 'yearly', unit: 'currency' }
+            ]
+        },
+        {
+            id: 'advertising', name: 'Advertising', items: [
+                { id: 1, name: 'Ad Spend', value: 4000, freq: 'yearly', unit: 'currency' }
+            ]
+        },
+        {
+            id: 'other', name: 'Other (PTO/Vlog)', items: [
+                { id: 1, name: 'Vlog Editing', value: 4900, freq: 'yearly', unit: 'currency' },
+                { id: 2, name: 'PTO Cost', value: 80, freq: 'yearly', unit: 'hours' },
+                { id: 3, name: 'Paid Holidays', value: 48, freq: 'yearly', unit: 'hours' }
+            ]
+        }
+    ]);
 
     // Gas Calculator State
     const [gasParams, setGasParams] = useState({
@@ -257,27 +324,45 @@ export default function HvacCalculator() {
         annualCost: 3920.00
     });
 
-    // 4. FIXED OVERHEAD (Compound Lists)
-    const [fixedOverhead, setFixedOverhead] = useState({
-        software: [
-            { id: 1, name: 'Jobber', value: 360, freq: 'monthly', unit: 'currency' },
-            { id: 1763604687857, name: 'QBO', value: 169, freq: 'monthly', unit: 'currency' },
-            { id: 1763604697423, name: 'Google Emails', value: 50, freq: 'monthly', unit: 'currency' }
-        ],
-        rent: [{ id: 1, name: 'Shop Rent', value: 30000, freq: 'yearly', unit: 'currency' }],
-        utilities: [{ id: 1, name: 'Gas, Electricity, Water, Wifi, Garbage', value: 1000, freq: 'monthly', unit: 'currency' }],
-        professional: [
-            { id: 1, name: 'Accountant', value: 10000, freq: 'yearly', unit: 'currency' },
-            { id: 2, name: 'Bank Fees', value: 0, freq: 'yearly', unit: 'currency' },
-            { id: 3, name: 'Licensing', value: 1000, freq: 'yearly', unit: 'currency' }
-        ],
-        insurance: [{ id: 1, name: 'Gen. Liability', value: 250, freq: 'monthly', unit: 'currency' }],
-        office: [
-            { id: 1, name: 'Postage', value: 1000, freq: 'yearly', unit: 'currency' },
-            { id: 2, name: 'Supplies', value: 0, freq: 'yearly', unit: 'currency' },
-            { id: 3, name: 'Janitorial', value: 0, freq: 'yearly', unit: 'currency' }
-        ]
-    });
+    // 4. FIXED OVERHEAD (Array of Category Objects)
+    const [fixedOverhead, setFixedOverhead] = useState([
+        {
+            id: 'software', name: 'Software', items: [
+                { id: 1, name: 'Jobber', value: 360, freq: 'monthly', unit: 'currency' },
+                { id: 2, name: 'QBO', value: 169, freq: 'monthly', unit: 'currency' },
+                { id: 3, name: 'Google Emails', value: 50, freq: 'monthly', unit: 'currency' }
+            ]
+        },
+        {
+            id: 'rent', name: 'Rent', items: [
+                { id: 1, name: 'Shop Rent', value: 30000, freq: 'yearly', unit: 'currency' }
+            ]
+        },
+        {
+            id: 'utilities', name: 'Utilities', items: [
+                { id: 1, name: 'Gas, Elec, Wifi', value: 1000, freq: 'monthly', unit: 'currency' }
+            ]
+        },
+        {
+            id: 'professional', name: 'Professional Fees', items: [
+                { id: 1, name: 'Accountant', value: 10000, freq: 'yearly', unit: 'currency' },
+                { id: 2, name: 'Bank Fees', value: 0, freq: 'yearly', unit: 'currency' },
+                { id: 3, name: 'Licensing', value: 1000, freq: 'yearly', unit: 'currency' }
+            ]
+        },
+        {
+            id: 'insurance', name: 'Insurance (GL)', items: [
+                { id: 1, name: 'Gen. Liability', value: 250, freq: 'monthly', unit: 'currency' }
+            ]
+        },
+        {
+            id: 'office', name: 'Office & Janitorial', items: [
+                { id: 1, name: 'Postage', value: 1000, freq: 'yearly', unit: 'currency' },
+                { id: 2, name: 'Supplies', value: 0, freq: 'yearly', unit: 'currency' },
+                { id: 3, name: 'Janitorial', value: 0, freq: 'yearly', unit: 'currency' }
+            ]
+        }
+    ]);
 
     // UI State
     const [sectionsOpen, setSectionsOpen] = useState({
@@ -290,10 +375,33 @@ export default function HvacCalculator() {
         setSectionsOpen(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
+    // --- HELPER FUNCTIONS FOR DYNAMIC LISTS ---
+
+    const addCategory = (setter, list) => {
+        const newCat = {
+            id: Date.now().toString(),
+            name: 'New Category',
+            items: []
+        };
+        setter([...list, newCat]);
+    };
+
+    const deleteCategory = (setter, list, id) => {
+        setter(list.filter(cat => cat.id !== id));
+    };
+
+    const renameCategory = (setter, list, id, newName) => {
+        setter(list.map(cat => cat.id === id ? { ...cat, name: newName } : cat));
+    };
+
+    const updateCategoryItems = (setter, list, id, newItems) => {
+        setter(list.map(cat => cat.id === id ? { ...cat, items: newItems } : cat));
+    };
+
     // --- EXPORT / IMPORT LOGIC ---
-    const handleExport = () => {
+    const performExport = () => {
         const data = {
-            version: '1.0',
+            version: '1.1', // Bumped version for structure change
             numEmployees,
             utilizationRate,
             workDays,
@@ -310,10 +418,14 @@ export default function HvacCalculator() {
         const href = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = href;
-        link.download = `hvac_config_${new Date().toISOString().slice(0, 10)}.json`;
+
+        const fileName = exportName.trim() ? exportName.trim() : 'hvac_config';
+        link.download = fileName.endsWith('.json') ? fileName : `${fileName}.json`;
+
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setIsExporting(false);
     };
 
     const handleImport = (event) => {
@@ -332,15 +444,44 @@ export default function HvacCalculator() {
                 if (data.targetRate !== undefined) setTargetRate(data.targetRate);
                 if (data.coreHourly) setCoreHourly(data.coreHourly);
                 if (data.benefitsList) setBenefitsList(data.benefitsList);
-                if (data.variableOverhead) setVariableOverhead(data.variableOverhead);
+
+                // Handle migration from object to array if importing old file
+                if (data.variableOverhead) {
+                    if (Array.isArray(data.variableOverhead)) {
+                        setVariableOverhead(data.variableOverhead);
+                    } else {
+                        // Simple migration for old object structure
+                        const newArr = Object.keys(data.variableOverhead).map(key => ({
+                            id: key,
+                            name: key.charAt(0).toUpperCase() + key.slice(1),
+                            items: data.variableOverhead[key]
+                        }));
+                        setVariableOverhead(newArr);
+                    }
+                }
+
                 if (data.gasParams) setGasParams(data.gasParams);
-                if (data.fixedOverhead) setFixedOverhead(data.fixedOverhead);
+
+                if (data.fixedOverhead) {
+                    if (Array.isArray(data.fixedOverhead)) {
+                        setFixedOverhead(data.fixedOverhead);
+                    } else {
+                        // Simple migration for old object structure
+                        const newArr = Object.keys(data.fixedOverhead).map(key => ({
+                            id: key,
+                            name: key.charAt(0).toUpperCase() + key.slice(1),
+                            items: data.fixedOverhead[key]
+                        }));
+                        setFixedOverhead(newArr);
+                    }
+                }
+
             } catch (error) {
                 console.error('Error parsing JSON:', error);
             }
         };
         reader.readAsText(file);
-        event.target.value = ''; // Reset input
+        event.target.value = '';
     };
 
 
@@ -394,7 +535,7 @@ export default function HvacCalculator() {
     const annualUnemployment = location === 'WI' ? 430 : 507.93;
 
     // Compound Benefits
-    const annualBenefitsTotal = getCompoundAnnual(benefitsList.general);
+    const annualBenefitsTotal = getCompoundAnnual(benefitsList.items);
     const hourlyBenefitsTotal = annualBenefitsTotal / totalAnnualHours;
 
     const totalAnnualLaborCost = annualWage + annualFica + annualUnemployment + annualInsurance + annualBenefitsTotal;
@@ -402,11 +543,11 @@ export default function HvacCalculator() {
 
     // 3. Variable Overhead Total
     const totalAnnualVariablePerEmp =
-        Object.values(variableOverhead).reduce((sum, list) => sum + getCompoundAnnual(list), 0) + gasParams.annualCost;
+        variableOverhead.reduce((sum, cat) => sum + getCompoundAnnual(cat.items), 0) + gasParams.annualCost;
 
     // 4. Fixed Overhead Total
     const totalAnnualFixedCompany =
-        Object.values(fixedOverhead).reduce((sum, list) => sum + getCompoundAnnual(list), 0);
+        fixedOverhead.reduce((sum, cat) => sum + getCompoundAnnual(cat.items), 0);
 
     const fixedCostAllocatedPerEmp = totalAnnualFixedCompany / numEmployees;
 
@@ -445,13 +586,30 @@ export default function HvacCalculator() {
 
                             {/* EXPORT / IMPORT BUTTONS */}
                             <div className="flex gap-2 ml-2">
-                                <button
-                                    onClick={handleExport}
-                                    className="flex items-center gap-1 px-3 py-1 bg-white border border-gray-200 rounded-md text-xs font-medium text-gray-600 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm"
-                                    title="Download current data"
-                                >
-                                    <Download size={14} /> Export Data
-                                </button>
+                                {isExporting ? (
+                                    <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
+                                        <input
+                                            type="text"
+                                            value={exportName}
+                                            onChange={(e) => setExportName(e.target.value)}
+                                            className="w-48 px-2 py-1 text-xs border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none font-medium text-slate-700"
+                                            autoFocus
+                                            placeholder="Filename"
+                                        />
+                                        <span className="text-xs text-gray-400 font-mono">.json</span>
+                                        <button onClick={performExport} className="p-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors" title="Confirm Export"><Check size={14} /></button>
+                                        <button onClick={() => setIsExporting(false)} className="p-1 bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors" title="Cancel"><X size={14} /></button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setIsExporting(true)}
+                                        className="flex items-center gap-1 px-3 py-1 bg-white border border-gray-200 rounded-md text-xs font-medium text-gray-600 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm"
+                                        title="Download current data"
+                                    >
+                                        <Download size={14} /> Export Data
+                                    </button>
+                                )}
+
                                 <button
                                     onClick={() => fileInputRef.current.click()}
                                     className="flex items-center gap-1 px-3 py-1 bg-white border border-gray-200 rounded-md text-xs font-medium text-gray-600 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm"
@@ -549,9 +707,8 @@ export default function HvacCalculator() {
                                     <div className="mt-4 pt-2 border-t border-gray-100">
                                         <h4 className="text-xs font-bold text-gray-400 uppercase mb-2">Custom Benefits & Perks</h4>
                                         <CompoundInputGroup
-                                            label="Benefits List"
-                                            items={benefitsList.general}
-                                            onUpdate={(items) => setBenefitsList({ general: items })}
+                                            category={benefitsList}
+                                            onUpdateItems={(id, items) => setBenefitsList(p => ({ ...p, items }))}
                                             workDays={workDays}
                                             wage={coreHourly.wage.value}
                                         />
@@ -576,9 +733,6 @@ export default function HvacCalculator() {
                             {sectionsOpen.variable && (
                                 <div className="p-4 bg-white animate-in slide-in-from-top-2 duration-200">
                                     <div className="text-xs text-gray-500 mb-3 bg-blue-50 p-2 rounded">Costs tied to each employee. Add multiple items per category.</div>
-
-                                    <CompoundInputGroup label="Trucks" items={variableOverhead.trucks} onUpdate={(i) => setVariableOverhead(p => ({ ...p, trucks: i }))} workDays={workDays} wage={coreHourly.wage.value} />
-                                    <CompoundInputGroup label="Tools" items={variableOverhead.tools} onUpdate={(i) => setVariableOverhead(p => ({ ...p, tools: i }))} workDays={workDays} wage={coreHourly.wage.value} />
 
                                     {/* Special Gas Calculator */}
                                     <div className="border-b border-gray-100 py-3 px-2">
@@ -608,12 +762,24 @@ export default function HvacCalculator() {
                                         </div>
                                     </div>
 
-                                    <CompoundInputGroup label="Uniforms" items={variableOverhead.uniforms} onUpdate={(i) => setVariableOverhead(p => ({ ...p, uniforms: i }))} workDays={workDays} wage={coreHourly.wage.value} />
-                                    <CompoundInputGroup label="Consumables" items={variableOverhead.consumables} onUpdate={(i) => setVariableOverhead(p => ({ ...p, consumables: i }))} workDays={workDays} wage={coreHourly.wage.value} />
-                                    <CompoundInputGroup label="Warranty" items={variableOverhead.warranty} onUpdate={(i) => setVariableOverhead(p => ({ ...p, warranty: i }))} workDays={workDays} wage={coreHourly.wage.value} />
-                                    <CompoundInputGroup label="Training" items={variableOverhead.training} onUpdate={(i) => setVariableOverhead(p => ({ ...p, training: i }))} workDays={workDays} wage={coreHourly.wage.value} />
-                                    <CompoundInputGroup label="Advertising" items={variableOverhead.advertising} onUpdate={(i) => setVariableOverhead(p => ({ ...p, advertising: i }))} workDays={workDays} wage={coreHourly.wage.value} />
-                                    <CompoundInputGroup label="Other (PTO/Vlog)" items={variableOverhead.other} onUpdate={(i) => setVariableOverhead(p => ({ ...p, other: i }))} workDays={workDays} wage={coreHourly.wage.value} />
+                                    {variableOverhead.map(category => (
+                                        <CompoundInputGroup
+                                            key={category.id}
+                                            category={category}
+                                            onUpdateItems={(id, items) => updateCategoryItems(setVariableOverhead, variableOverhead, id, items)}
+                                            onRename={(id, name) => renameCategory(setVariableOverhead, variableOverhead, id, name)}
+                                            onDelete={(id) => deleteCategory(setVariableOverhead, variableOverhead, id)}
+                                            workDays={workDays}
+                                            wage={coreHourly.wage.value}
+                                        />
+                                    ))}
+
+                                    <button
+                                        onClick={() => addCategory(setVariableOverhead, variableOverhead)}
+                                        className="w-full mt-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-bold border border-blue-100 hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Plus size={16} /> Add Category
+                                    </button>
 
                                     <div className="mt-4 pt-3 border-t border-gray-200 flex justify-between font-bold text-slate-700 text-sm">
                                         <span>Annual Variable Total</span>
@@ -635,12 +801,24 @@ export default function HvacCalculator() {
                                 <div className="p-4 bg-white animate-in slide-in-from-top-2 duration-200">
                                     <div className="text-xs text-gray-500 mb-3 bg-orange-50 p-2 rounded">Total company costs (divided by # of techs).</div>
 
-                                    <CompoundInputGroup label="Software" items={fixedOverhead.software} onUpdate={(i) => setFixedOverhead(p => ({ ...p, software: i }))} workDays={workDays} wage={coreHourly.wage.value} />
-                                    <CompoundInputGroup label="Rent" items={fixedOverhead.rent} onUpdate={(i) => setFixedOverhead(p => ({ ...p, rent: i }))} workDays={workDays} wage={coreHourly.wage.value} />
-                                    <CompoundInputGroup label="Utilities" items={fixedOverhead.utilities} onUpdate={(i) => setFixedOverhead(p => ({ ...p, utilities: i }))} workDays={workDays} wage={coreHourly.wage.value} />
-                                    <CompoundInputGroup label="Professional Fees" items={fixedOverhead.professional} onUpdate={(i) => setFixedOverhead(p => ({ ...p, professional: i }))} workDays={workDays} wage={coreHourly.wage.value} />
-                                    <CompoundInputGroup label="Insurance (GL)" items={fixedOverhead.insurance} onUpdate={(i) => setFixedOverhead(p => ({ ...p, insurance: i }))} workDays={workDays} wage={coreHourly.wage.value} />
-                                    <CompoundInputGroup label="Office & Janitorial" items={fixedOverhead.office} onUpdate={(i) => setFixedOverhead(p => ({ ...p, office: i }))} workDays={workDays} wage={coreHourly.wage.value} />
+                                    {fixedOverhead.map(category => (
+                                        <CompoundInputGroup
+                                            key={category.id}
+                                            category={category}
+                                            onUpdateItems={(id, items) => updateCategoryItems(setFixedOverhead, fixedOverhead, id, items)}
+                                            onRename={(id, name) => renameCategory(setFixedOverhead, fixedOverhead, id, name)}
+                                            onDelete={(id) => deleteCategory(setFixedOverhead, fixedOverhead, id)}
+                                            workDays={workDays}
+                                            wage={coreHourly.wage.value}
+                                        />
+                                    ))}
+
+                                    <button
+                                        onClick={() => addCategory(setFixedOverhead, fixedOverhead)}
+                                        className="w-full mt-4 py-2 bg-orange-50 text-orange-600 rounded-lg text-sm font-bold border border-orange-100 hover:bg-orange-100 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Plus size={16} /> Add Category
+                                    </button>
 
                                     <div className="mt-4 pt-3 border-t border-gray-200 space-y-1">
                                         <div className="flex justify-between text-sm text-gray-500">
