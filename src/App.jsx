@@ -42,7 +42,8 @@ const ReportView = ({ data, onClose }) => {
         breakEvenRate, profitMargin, profitPerHour,
         totalAnnualCostPerEmp, totalAnnualLaborCost, totalAnnualVariablePerEmp, fixedCostAllocatedPerEmp,
         coreHourly, benefitsList, variableOverhead, gasParams, fixedOverhead,
-        billableHours, baseWorkDays, ptoDays, holidayDays, totalAnnualFixedCompany
+        billableHours, baseWorkDays, ptoDays, holidayDays, totalAnnualFixedCompany,
+        annualInsurance // New prop passed for detailed breakdown
     } = data;
 
     const annualRevenue = targetRate * billableHours;
@@ -119,6 +120,11 @@ const ReportView = ({ data, onClose }) => {
         recommendationText = "HEALTHY PERFORMANCE: The projected margins meet or exceed industry standards. Focus on maintaining utilization rates and controlling variable costs as the team grows.";
         recommendationColor = "bg-emerald-50 border-emerald-200 text-emerald-900";
     }
+
+    // Prepare Insurance Display Value
+    const insuranceDisplayValue = coreHourly.insurance.unit === 'percent' 
+        ? `${coreHourly.insurance.value}% of Base`
+        : `$${coreHourly.insurance.value.toFixed(2)}`;
 
     return (
         <div className="fixed inset-0 bg-slate-100 z-50 overflow-y-auto font-sans">
@@ -399,6 +405,13 @@ const ReportView = ({ data, onClose }) => {
                                             <td className="py-1.5 text-slate-600">Base Wage</td>
                                             <td className="py-1.5 text-right font-medium">${coreHourly.wage.value.toFixed(2)}/hr</td>
                                         </tr>
+                                        <tr>
+                                            <td className="py-1.5 text-slate-600">Insurance</td>
+                                            <td className="py-1.5 text-right text-slate-500">
+                                                ${annualInsurance.toLocaleString()}
+                                                <span className="text-[9px] text-gray-400 block">{insuranceDisplayValue}</span>
+                                            </td>
+                                        </tr>
                                         {benefitsList.items.map(item => (
                                             <tr key={item.id}>
                                                 <td className="py-1.5 text-slate-600">{item.name}</td>
@@ -657,7 +670,7 @@ const CompoundInputGroup = ({ category, onUpdateItems, onRename, onDelete, workD
     );
 };
 
-const InputRow = ({ label, data, onChange, className = "", children, readOnly = false, readOnlyText = "" }) => (
+const InputRow = ({ label, data, onChange, className = "", children, readOnly = false, readOnlyText = "", allowPercent = false }) => (
     <div className={`flex items-center justify-between py-2 border-b border-gray-100 last:border-0 text-sm ${className}`}>
         <span className="text-gray-600 flex-1 mr-2">{label}</span>
         <div className="flex items-center gap-2">
@@ -669,27 +682,47 @@ const InputRow = ({ label, data, onChange, className = "", children, readOnly = 
             ) : (
                 <>
                     <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                        {allowPercent ? (
+                             <select
+                                value={data.unit || 'currency'}
+                                onChange={(e) => onChange({ ...data, unit: e.target.value })}
+                                className="absolute left-1 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-bold bg-transparent border-none focus:ring-0 cursor-pointer appearance-none p-0 pr-1"
+                                style={{ width: '20px' }}
+                            >
+                                <option value="currency">$</option>
+                                <option value="percent">%</option>
+                            </select>
+                        ) : (
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                        )}
+
                         <input
                             type="number"
                             value={data.value}
                             onChange={(e) => onChange({ ...data, value: parseFloat(e.target.value) || 0 })}
-                            className="w-24 text-right font-medium text-gray-900 border rounded pl-4 pr-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none"
-                            step="0.01"
+                            className={`w-24 text-right font-medium text-gray-900 border rounded pr-1 py-1 focus:ring-2 focus:ring-blue-500 outline-none ${allowPercent ? 'pl-6' : 'pl-4'}`}
+                            step={data.unit === 'percent' ? "0.1" : "0.01"}
                         />
                     </div>
-                    <div className="relative">
-                        <select
-                            value={data.freq}
-                            onChange={(e) => onChange({ ...data, freq: e.target.value })}
-                            className="appearance-none bg-gray-50 border border-gray-200 text-gray-600 py-1 pl-2 pr-6 rounded focus:ring-2 focus:ring-blue-500 outline-none text-xs font-medium w-[70px]"
-                        >
-                            {FREQUENCIES.map(f => (
-                                <option key={f.value} value={f.value}>{f.label}</option>
-                            ))}
-                        </select>
-                        <ChevronDown size={12} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    </div>
+                    {(!data.unit || data.unit === 'currency') && (
+                        <div className="relative">
+                            <select
+                                value={data.freq}
+                                onChange={(e) => onChange({ ...data, freq: e.target.value })}
+                                className="appearance-none bg-gray-50 border border-gray-200 text-gray-600 py-1 pl-2 pr-6 rounded focus:ring-2 focus:ring-blue-500 outline-none text-xs font-medium w-[70px]"
+                            >
+                                {FREQUENCIES.map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                ))}
+                            </select>
+                            <ChevronDown size={12} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        </div>
+                    )}
+                     {data.unit === 'percent' && (
+                        <div className="w-[70px] text-[10px] text-gray-400 flex items-center justify-center bg-gray-50 rounded border border-gray-100 h-[26px]">
+                            of Wage+Tax
+                        </div>
+                    )}
                 </>
             )}
         </div>
@@ -708,7 +741,6 @@ export default function App() {
     const [utilizationRate, setUtilizationRate] = useState(65);
     const [baseWorkDays, setBaseWorkDays] = useState(261);
     const [hoursPerDay, setHoursPerDay] = useState(9);
-    const [location, setLocation] = useState('WI');
     const [targetRate, setTargetRate] = useState(200);
     const [includeCCFee, setIncludeCCFee] = useState(true); // Toggle state for CC Fee
     const [ccFeePercentage, setCcFeePercentage] = useState(3.0); // New state for CC Fee Percentage
@@ -720,6 +752,7 @@ export default function App() {
     const [coreHourly, setCoreHourly] = useState({
         wage: { value: 50.00, freq: 'hourly', unit: 'currency' },
         insurance: { value: 2.00, freq: 'hourly', unit: 'currency' },
+        unemployment: { value: 430.00, freq: 'yearly', unit: 'currency' },
     });
 
     // 2. BENEFITS & PERKS (Consolidated Default List)
@@ -870,7 +903,6 @@ export default function App() {
             utilizationRate,
             baseWorkDays, // Export base days
             hoursPerDay,
-            location,
             targetRate,
             includeCCFee, // Included in Export
             ccFeePercentage, // Export CC fee percentage
@@ -906,11 +938,26 @@ export default function App() {
                 else if (data.workDays !== undefined) setBaseWorkDays(data.workDays); // Fallback for old files
 
                 if (data.hoursPerDay !== undefined) setHoursPerDay(data.hoursPerDay);
-                if (data.location) setLocation(data.location);
                 if (data.targetRate !== undefined) setTargetRate(data.targetRate);
                 if (data.includeCCFee !== undefined) setIncludeCCFee(data.includeCCFee); // Import Setting
                 if (data.ccFeePercentage !== undefined) setCcFeePercentage(data.ccFeePercentage); // Import CC fee percentage
-                if (data.coreHourly) setCoreHourly(data.coreHourly);
+                
+                // Handle coreHourly with backward compatibility for location
+                if (data.coreHourly) {
+                    let importedCore = { ...data.coreHourly };
+                    // If importing old file without unemployment field, add it based on old location
+                    if (!importedCore.unemployment) {
+                         const oldLocation = data.location || 'WI';
+                         const defaultVal = oldLocation === 'IL' ? 507.93 : 430.00;
+                         importedCore.unemployment = { value: defaultVal, freq: 'yearly', unit: 'currency' };
+                    }
+                    // Fix for Insurance unit compatibility
+                    if (importedCore.insurance && !importedCore.insurance.unit) {
+                        importedCore.insurance.unit = 'currency';
+                    }
+                    setCoreHourly(importedCore);
+                }
+
                 if (data.benefitsList) setBenefitsList(data.benefitsList);
                 if (data.variableOverhead) {
                     if (Array.isArray(data.variableOverhead)) {
@@ -994,10 +1041,21 @@ export default function App() {
 
     // 2. Labor & Benefits
     const annualWage = getSimpleAnnual(coreHourly.wage);
-    const annualInsurance = getSimpleAnnual(coreHourly.insurance);
+    
+    // Calculate FICA and Unemployment first as they form the base for Percentage-based Insurance
     const annualFica = annualWage * 0.0765;
     const hourlyFicaDisplay = (annualFica / totalAnnualHours).toFixed(2);
-    const annualUnemployment = location === 'WI' ? 430 : 507.93;
+    const annualUnemployment = getSimpleAnnual(coreHourly.unemployment);
+
+    // Calculate Insurance
+    let annualInsurance = 0;
+    if (coreHourly.insurance.unit === 'percent') {
+        const insuranceBase = annualWage + annualFica + annualUnemployment;
+        annualInsurance = insuranceBase * (coreHourly.insurance.value / 100);
+    } else {
+        annualInsurance = getSimpleAnnual(coreHourly.insurance);
+    }
+    
     const annualBenefitsTotal = getCompoundAnnual(benefitsList.items);
     const hourlyBenefitsTotal = annualBenefitsTotal / totalAnnualHours;
 
@@ -1040,11 +1098,12 @@ export default function App() {
 
     // Pack all calculated data into an object for the ReportView
     const calculatedData = {
-        numEmployees, utilizationRate, workDays, hoursPerDay, location, targetRate, includeCCFee,
+        numEmployees, utilizationRate, workDays, hoursPerDay, targetRate, includeCCFee,
         breakEvenRate, profitMargin, profitPerHour,
         totalAnnualCostPerEmp, totalAnnualLaborCost, totalAnnualVariablePerEmp, fixedCostAllocatedPerEmp,
         coreHourly, benefitsList, variableOverhead, gasParams, fixedOverhead,
-        billableHours, baseWorkDays, ptoDays, holidayDays, totalAnnualFixedCompany
+        billableHours, baseWorkDays, ptoDays, holidayDays, totalAnnualFixedCompany,
+        annualInsurance // Added for Report
     };
 
     if (showReport) {
@@ -1193,20 +1252,18 @@ export default function App() {
                                 <div className="p-4 bg-white animate-in slide-in-from-top-2 duration-200">
                                     {/* Simple Inputs */}
                                     <InputRow label="Hourly Rate" data={coreHourly.wage} onChange={(v) => setCoreHourly(p => ({ ...p, wage: v }))} />
-                                    <InputRow label="Insurance" data={coreHourly.insurance} onChange={(v) => setCoreHourly(p => ({ ...p, insurance: v }))} />
-
-                                    {/* Read Only Taxes */}
                                     <InputRow label="FICA Tax (7.65%)" readOnly={true} readOnlyText={`$${hourlyFicaDisplay}/hr`} />
+                                    
+                                    {/* Adjustable State Unemployment */}
+                                    <InputRow label="State Unemployment" data={coreHourly.unemployment} onChange={(v) => setCoreHourly(p => ({ ...p, unemployment: v }))} />
 
-                                    <div className="flex items-center justify-between py-2 border-b border-gray-100 text-sm">
-                                        <span className="text-gray-600 flex-1 mr-2 flex items-center gap-1"><MapPin size={14} className="text-gray-400" /> State</span>
-                                        <div className="relative">
-                                            <select value={location} onChange={(e) => setLocation(e.target.value)} className="bg-blue-50 border border-blue-200 text-blue-700 py-1 px-2 rounded font-bold text-sm outline-none">
-                                                <option value="WI">WI ($430/yr)</option>
-                                                <option value="IL">IL ($508/yr)</option>
-                                            </select>
-                                        </div>
-                                    </div>
+                                    {/* Insurance with Unit Toggle */}
+                                    <InputRow 
+                                        label="Workers' Comp/Ins." 
+                                        data={coreHourly.insurance} 
+                                        onChange={(v) => setCoreHourly(p => ({ ...p, insurance: v }))} 
+                                        allowPercent={true}
+                                    />
 
                                     {/* Compound Benefits List */}
                                     <div className="mt-4 pt-2 border-t border-gray-100">
